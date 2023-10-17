@@ -245,3 +245,4 @@ git stash pop
 
 1. 若不通过则切换回特性分支并继续开发，重复以上过程：`git checkout feature/<name>`
 
+合并时候的 commit message 需要遵守 commit 规范：https://zhuanlan.zhihu.com/p/182553920
