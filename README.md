@@ -98,3 +98,133 @@ MiniOB 采用 [木兰宽松许可证，第2版](https://license.coscl.org.cn/Mul
 - [OceanBase 社区交流群 33254054](https://h5.dingtalk.com/circle/healthCheckin.html?corpId=dingd88359ef5e4c49ef87cda005313eea7a&1fe0ca69-72d=16c86a07-83c&cbdbhh=qwertyuiop&origin=1)
 - [OceanBase 大赛官方交流群 35326455](https://qr.dingtalk.com/action/joingroup?code=v1,k1,g61jI0RwHQA8UMocuTbys2cyM7vck2c6jNE87vdxz9o=&_dt_no_comment=1&origin=11)
 - [OceanBase 官方论坛](https://ask.oceanbase.com/)
+
+# 开发流程
+
+这里针对OB大赛做一个简单的流程建议。
+
+## 分支
+
+在仓库创建出来的时候，就会有一个默认分支，一般是 `main`。大赛后台测试，每次会拉取默认分支进行编译测试。
+
+因此，建议将 `main` 作为“稳定”分支，就是所有的修改，都测试完成后，再 merge 到 `main`。
+
+后续，所有的默认分支都称为 `main`。
+
+如果是团队开发，建议创建一个 `dev` 分支，作为团队共同开发的分支，大家修改的新功能，先 merge 到 `dev`，在 `dev` 测试通过后，再 merge 到 `main`。
+
+对于团队中的成员，可以开启一个自己的分支，或者以功能名称命名的分支，比如 `feature/update`。
+
+## 流程
+
+### 对于团队
+
+1. 创建主分支 `main`
+
+1. 创建开发分支 `dev`
+
+团队准备提交代码到主分支时，执行：
+
+```bash
+# 切换到开发分支
+git checkout develop
+# 拉取最新代码
+git pull
+# 执行一系列测试，没有问题的时候
+# 切换到主分支，并更新到最新
+git checkout main
+git pull
+# 合并开发分支
+git merge develop
+# 推送到远程仓库，这时官方测试人员，就可以拉到最新的代码
+git push
+```
+### 对于个人
+
+1. 拉取团队仓库代码(`git clone`)
+1. 切换到 `dev` 分支(`git checkout develop`)
+1. 创建新分支，用于开发新的功能，比如 `git checkout -b feature/update`
+1. 功能开发完成，测试通过后，提交代码到本地仓库 git add . && git commit -m 'your commit message'
+1. 同步代码到开发分支develop
+
+```sh
+# 切换到develop分支
+git checkout develop 
+
+# 同步远程分支代码
+git pull
+
+# 合并 feature/update 到develop
+git merge feature/update
+
+# 合并完成后，推送到远程仓库
+git push
+
+# 然后删除自己的feature分支
+git branch -d feature/update
+```
+
+## 常用命令
+
+查看当前分支
+
+```sh
+git branch  # 查看本地分支
+
+git branch -a # 查看所有分支，包括远程分支
+```
+
+如何创建分支
+
+```sh
+git checkout -b 'your branch name'
+
+git branch -d 'your branch name'  # 删除一个分支
+```
+
+如何切换分支
+
+```sh
+git checkout 'branch name'
+```
+
+如何提交代码
+
+```sh
+# 添加想要提交的文件或文件夹
+git add 'the files or directories you want to commit' 
+# 这一步也可以用 git add . 添加当前目录
+
+# 提交到本地仓库
+# -m 中是提交代码的消息，建议写有意义的信息，方便后面查找
+git commit -m 'commit message'
+```
+如何推送代码到远程仓库
+
+```sh
+git push
+# 可以将多次提交，一次性push到远程仓库
+如何合并代码
+# 假设当前处于分支 develop 下
+git merge feature/update
+# 会将 feature/update 分支的修改，merge 到 develop 分支
+```
+
+如何临时修改另一个分支的代码
+
+```sh
+# 有时候，正在开发一个新功能时，突然来了一个紧急BUG，这时候需要切换到另一个分支去开发
+# 这时可以先把当前的代码提交上去，然后切换分支。或者也可以这样：
+git stash # 将当前的修改保存起来
+
+git checkout main # 切换到主分支，或者修复BUG的分支
+
+git checkout -b fix/xxx  # 创建一个新分支，用于修复问题
+
+# 修改完成后，merge到main分支
+# 然后，继续我们的功能开发
+git checkout feature/update # 假设我们最开始就是在这个分支上
+git stash pop
+
+# stash 还有很多好玩的功能，大家可以探索一下
+```
