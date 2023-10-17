@@ -228,3 +228,20 @@ git stash pop
 
 # stash 还有很多好玩的功能，大家可以探索一下
 ```
+
+## 开发流程
+
+1. 对于每一道题，新建一个分支 `feature/<name>` 来进行开发
+
+1. 写完代码，能够过编译和本地测试后，合并到 dev 分支：
+
+    1. 切换到 `dev` 分支：`git checkout dev`
+
+    1. 同步 `dev` 分支最新代码：`git pull`
+
+    1. 合并分支，并处理冲突：`git merge dev -m "commit message"`
+
+1. 进行提测，若通过则使用 github 发送 pr 请求来合并到 `main` 并删除分支：`git branch -d feature/<name>`
+
+1. 若不通过则切换回特性分支并继续开发，重复以上过程：`git checkout feature/<name>`
+
