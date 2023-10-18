@@ -2172,7 +2172,7 @@ yyreduce:
        {
       (yyval.rel_attr) = new RelAttrSqlNode;
       (yyval.rel_attr)->attribute_name = (yyvsp[0].string);
-      (yyval.rel_attr)->aggre_type = AggreType::AT_NONE;
+      (yyval.rel_attr)->aggre_type = AggreType::NONE;
       free((yyvsp[0].string));
     }
 #line 2177 "yacc_sql.cpp"
@@ -2184,15 +2184,120 @@ yyreduce:
       (yyval.rel_attr) = new RelAttrSqlNode;
       (yyval.rel_attr)->relation_name  = (yyvsp[-2].string);
       (yyval.rel_attr)->attribute_name = (yyvsp[0].string);
-      (yyval.rel_attr)->aggre_type = AggreType::AT_NONE;
+      (yyval.rel_attr)->aggre_type = AggreType::NONE;
       free((yyvsp[-2].string));
       free((yyvsp[0].string));
     }
 #line 2189 "yacc_sql.cpp"
     break;
 
-  case 68: /* attr_list: %empty  */
+  case 66: /* rel_attr: MAX LBRACE ID RBRACE  */
+#line 531 "yacc_sql.y"
+                           {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = (yyvsp[-1].string);
+      (yyval.rel_attr)->aggre_type = AggreType::MAX;
+      free((yyvsp[-1].string));
+    }
+#line 2206 "yacc_sql.cpp"
+    break;
+
+  case 67: /* rel_attr: MIN LBRACE ID RBRACE  */
 #line 537 "yacc_sql.y"
+                           {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = (yyvsp[-1].string);
+      (yyval.rel_attr)->aggre_type = AggreType::MIN;
+      free((yyvsp[-1].string));
+    }
+#line 2217 "yacc_sql.cpp"
+    break;
+
+  case 68: /* rel_attr: CNT LBRACE ID RBRACE  */
+#line 543 "yacc_sql.y"
+                           {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = (yyvsp[-1].string);
+      (yyval.rel_attr)->aggre_type = AggreType::CNT;
+      free((yyvsp[-1].string));
+    }
+#line 2228 "yacc_sql.cpp"
+    break;
+
+  case 69: /* rel_attr: SUM LBRACE ID RBRACE  */
+#line 549 "yacc_sql.y"
+                           {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = (yyvsp[-1].string);
+      (yyval.rel_attr)->aggre_type = AggreType::SUM;
+      free((yyvsp[-1].string));
+    }
+#line 2239 "yacc_sql.cpp"
+    break;
+
+  case 70: /* rel_attr: AVG LBRACE ID RBRACE  */
+#line 555 "yacc_sql.y"
+                           {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = (yyvsp[-1].string);
+      (yyval.rel_attr)->aggre_type = AggreType::AVG;
+      free((yyvsp[-1].string));
+    }
+#line 2250 "yacc_sql.cpp"
+    break;
+
+  case 71: /* rel_attr: MAX LBRACE '*' RBRACE  */
+#line 561 "yacc_sql.y"
+                            {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = "*";
+      (yyval.rel_attr)->aggre_type = AggreType::MAX;
+    }
+#line 2260 "yacc_sql.cpp"
+    break;
+
+  case 72: /* rel_attr: MIN LBRACE '*' RBRACE  */
+#line 566 "yacc_sql.y"
+                            {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = "*";
+      (yyval.rel_attr)->aggre_type = AggreType::MIN;
+    }
+#line 2270 "yacc_sql.cpp"
+    break;
+
+  case 73: /* rel_attr: CNT LBRACE '*' RBRACE  */
+#line 571 "yacc_sql.y"
+                            {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = "*";
+      (yyval.rel_attr)->aggre_type = AggreType::CNT;
+    }
+#line 2280 "yacc_sql.cpp"
+    break;
+
+  case 74: /* rel_attr: SUM LBRACE '*' RBRACE  */
+#line 576 "yacc_sql.y"
+                            {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = "*";
+      (yyval.rel_attr)->aggre_type = AggreType::SUM;
+    }
+#line 2290 "yacc_sql.cpp"
+    break;
+
+  case 75: /* rel_attr: AVG LBRACE '*' RBRACE  */
+#line 581 "yacc_sql.y"
+                            {
+      (yyval.rel_attr) = new RelAttrSqlNode;
+      (yyval.rel_attr)->attribute_name = "*";
+      (yyval.rel_attr)->aggre_type = AggreType::AVG;
+    }
+#line 2300 "yacc_sql.cpp"
+    break;
+
+  case 76: /* attr_list: %empty  */
+#line 590 "yacc_sql.y"
     {
       (yyval.rel_attr_list) = nullptr;
     }
