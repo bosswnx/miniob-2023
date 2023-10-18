@@ -98,6 +98,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LE
         GE
         NE
+        MAX
+        MIN
+        SUM
+        CNT
+        AVG
         LK
         NLK
 
@@ -523,14 +528,71 @@ rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
+      $$->aggre_type = AggreType::AT_NONE;
       free($1);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
       $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_NONE;
       free($1);
       free($3);
+    }
+    | MAX LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_MAX;
+      free($3);
+    }
+    | MIN LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_MIN;
+      free($3);
+    }
+    | CNT LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_CNT;
+      free($3);
+    }
+    | SUM LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_SUM;
+      free($3);
+    }
+    | AVG LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->aggre_type = AggreType::AT_AVG;
+      free($3);
+    }
+    | MAX LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = "*";
+      $$->aggre_type = AggreType::AT_MAX;
+    }
+    | MIN LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = "*";
+      $$->aggre_type = AggreType::AT_MIN;
+    }
+    | CNT LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = "*";
+      $$->aggre_type = AggreType::AT_CNT;
+    }
+    | SUM LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = "*";
+      $$->aggre_type = AggreType::AT_SUM;
+    }
+    | AVG LBRACE '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = "*";
+      $$->aggre_type = AggreType::AT_AVG;
     }
     ;
 

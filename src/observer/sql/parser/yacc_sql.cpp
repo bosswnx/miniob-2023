@@ -571,7 +571,11 @@ union yyalloc
 #define YYLAST   156
 
 /* YYNTOKENS -- Number of terminals.  */
+<<<<<<< HEAD
 #define YYNTOKENS  59
+=======
+#define YYNTOKENS  60
+>>>>>>> efbad1e (finish parser)
 /* YYNNTS -- Number of nonterminals.  */
 #define YYNNTS  40
 /* YYNRULES -- Number of rules.  */
@@ -580,7 +584,11 @@ union yyalloc
 #define YYNSTATES  167
 
 /* YYMAXUTOK -- Last valid token kind.  */
+<<<<<<< HEAD
 #define YYMAXUTOK   309
+=======
+#define YYMAXUTOK   310
+>>>>>>> efbad1e (finish parser)
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -598,7 +606,11 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+<<<<<<< HEAD
        2,     2,    56,    54,     2,    55,     2,    57,     2,     2,
+=======
+       2,     2,    57,    55,     2,    56,     2,    58,     2,     2,
+>>>>>>> efbad1e (finish parser)
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -624,7 +636,12 @@ static const yytype_int8 yytranslate[] =
       15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
       25,    26,    27,    28,    29,    30,    31,    32,    33,    34,
       35,    36,    37,    38,    39,    40,    41,    42,    43,    44,
+<<<<<<< HEAD
       45,    46,    47,    48,    49,    50,    51,    52,    53,    58
+=======
+      45,    46,    47,    48,    49,    50,    51,    52,    53,    54,
+      59
+>>>>>>> efbad1e (finish parser)
 };
 
 #if YYDEBUG
@@ -2175,6 +2192,7 @@ yyreduce:
        {
       (yyval.rel_attr) = new RelAttrSqlNode;
       (yyval.rel_attr)->attribute_name = (yyvsp[0].string);
+      (yyval.rel_attr)->aggre_type = AggreType::AT_NONE;
       free((yyvsp[0].string));
     }
 #line 2181 "yacc_sql.cpp"
@@ -2186,6 +2204,7 @@ yyreduce:
       (yyval.rel_attr) = new RelAttrSqlNode;
       (yyval.rel_attr)->relation_name  = (yyvsp[-2].string);
       (yyval.rel_attr)->attribute_name = (yyvsp[0].string);
+      (yyval.rel_attr)->aggre_type = AggreType::AT_NONE;
       free((yyvsp[-2].string));
       free((yyvsp[0].string));
     }

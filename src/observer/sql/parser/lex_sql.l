@@ -116,6 +116,13 @@ LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
+
+MAX                                     RETURN_TOKEN(MAX);
+MIN                                     RETURN_TOKEN(MIN);
+COUNT                                   RETURN_TOKEN(CNT);
+AVG                                     RETURN_TOKEN(AVG);
+SUM                                     RETURN_TOKEN(SUM);
+
 LIKE                                    RETURN_TOKEN(LK);
 "NOT LIKE"                              RETURN_TOKEN(NLK);
 {ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
