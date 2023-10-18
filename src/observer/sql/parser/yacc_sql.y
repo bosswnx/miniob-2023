@@ -528,71 +528,71 @@ rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
-      $$->aggre_type = AggreType::AT_NONE;
+      $$->aggre_type = AggreType::NONE;
       free($1);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_NONE;
+      $$->aggre_type = AggreType::NONE;
       free($1);
       free($3);
     }
     | MAX LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_MAX;
+      $$->aggre_type = AggreType::MAX;
       free($3);
     }
     | MIN LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_MIN;
+      $$->aggre_type = AggreType::MIN;
       free($3);
     }
     | CNT LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_CNT;
+      $$->aggre_type = AggreType::CNT;
       free($3);
     }
     | SUM LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_SUM;
+      $$->aggre_type = AggreType::SUM;
       free($3);
     }
     | AVG LBRACE ID RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AT_AVG;
+      $$->aggre_type = AggreType::AVG;
       free($3);
     }
     | MAX LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AT_MAX;
+      $$->aggre_type = AggreType::MAX;
     }
     | MIN LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AT_MIN;
+      $$->aggre_type = AggreType::MIN;
     }
     | CNT LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AT_CNT;
+      $$->aggre_type = AggreType::CNT;
     }
     | SUM LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AT_SUM;
+      $$->aggre_type = AggreType::SUM;
     }
     | AVG LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AT_AVG;
+      $$->aggre_type = AggreType::AVG;
     }
     ;
 
