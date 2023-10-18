@@ -76,6 +76,7 @@ extern int yydebug;
     TRX_ROLLBACK = 277,            /* TRX_ROLLBACK  */
     INT_T = 278,                   /* INT_T  */
     STRING_T = 279,                /* STRING_T  */
+<<<<<<< HEAD
     DATE_T = 280,                  /* DATE_T  */
     FLOAT_T = 281,                 /* FLOAT_T  */
     HELP = 282,                    /* HELP  */
@@ -104,6 +105,39 @@ extern int yydebug;
     DATE_STR = 305,                /* DATE_STR  */
     SSS = 306,                     /* SSS  */
     UMINUS = 307                   /* UMINUS  */
+=======
+    FLOAT_T = 280,                 /* FLOAT_T  */
+    HELP = 281,                    /* HELP  */
+    EXIT = 282,                    /* EXIT  */
+    DOT = 283,                     /* DOT  */
+    INTO = 284,                    /* INTO  */
+    VALUES = 285,                  /* VALUES  */
+    FROM = 286,                    /* FROM  */
+    WHERE = 287,                   /* WHERE  */
+    AND = 288,                     /* AND  */
+    SET = 289,                     /* SET  */
+    ON = 290,                      /* ON  */
+    LOAD = 291,                    /* LOAD  */
+    DATA = 292,                    /* DATA  */
+    INFILE = 293,                  /* INFILE  */
+    EXPLAIN = 294,                 /* EXPLAIN  */
+    EQ = 295,                      /* EQ  */
+    LT = 296,                      /* LT  */
+    GT = 297,                      /* GT  */
+    LE = 298,                      /* LE  */
+    GE = 299,                      /* GE  */
+    NE = 300,                      /* NE  */
+    MAX = 301,                     /* MAX  */
+    MIN = 302,                     /* MIN  */
+    SUM = 303,                     /* SUM  */
+    CNT = 304,                     /* CNT  */
+    AVG = 305,                     /* AVG  */
+    NUMBER = 306,                  /* NUMBER  */
+    FLOAT = 307,                   /* FLOAT  */
+    ID = 308,                      /* ID  */
+    SSS = 309,                     /* SSS  */
+    UMINUS = 310                   /* UMINUS  */
+>>>>>>> cdf1404 (finish parser)
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -112,7 +146,11 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
+<<<<<<< HEAD
 #line 103 "yacc_sql.y"
+=======
+#line 107 "yacc_sql.y"
+>>>>>>> cdf1404 (finish parser)
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -131,7 +169,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
-#line 135 "yacc_sql.hpp"
+#line 138 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
