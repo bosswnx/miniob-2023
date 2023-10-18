@@ -102,14 +102,20 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfoS
 }
 
 RC Db::drop_table(const char *table_name) {
-  if (opened_tables_.count(table_name) == 0) {
+  auto it = opened_tables_.find(table_name);
+  if (it == opened_tables_.end()) {
     LOG_WARN("%s doesn't exists.", table_name);
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
-  auto *table = opened_tables_[table_name];
+  auto *table = it->second;
+  RC rc = table->drop();
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
   auto table_id = table->table_id();
   delete table;
-  LOG_INFO("Drop table success. table_name=%s, table_id=%s", table_name, table_id);
+  opened_tables_.erase(it);
+  LOG_INFO("Drop table success. table_name=%s, table_id=%d", table_name, table_id);
   return RC::SUCCESS;
 }
 
