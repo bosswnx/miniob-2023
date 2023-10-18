@@ -231,18 +231,51 @@ git stash pop
 
 ## 开发流程
 
-1. 对于每一道题，新建一个分支 `feature/<name>` 来进行开发
+对于每一道题，从当前 `main` 分支新建一个分支 `feat/<name>` 来进行开发:
 
-1. 写完代码，能够过编译和本地测试后，合并到 dev 分支：
+```bash
+# 切换到 main 分支
+git checkout main
+# 同步 main 分支最新代码
+git pull
+# 新建分支，<name> 是题目的英文名
+git checkout -b feat/<name>
+```
 
-    1. 切换到 `dev` 分支：`git checkout dev`
+`feat` 还可以用下列单词替换：
 
-    1. 同步 `dev` 分支最新代码：`git pull`
+- feat：新功能（feature）。
 
-    1. 合并分支，并处理冲突：`git merge dev -m "commit message"`
+- fix/to：修复bug。
 
-1. 进行提测，若通过则使用 github 发送 pr 请求来合并到 `main` 并删除分支：`git branch -d feature/<name>`
+- docs：文档（documentation）。
 
-1. 若不通过则切换回特性分支并继续开发，重复以上过程：`git checkout feature/<name>`
+- style：格式（不影响代码运行的变动）。
 
+- refactor：重构（即不是新增功能，也不是修改bug的代码变动）。
+
+- perf：优化相关，比如提升性能、体验。
+
+- test：增加测试。
+
+- chore：构建过程或辅助工具的变动。
+
+进行第一次提测前，需要将分支推送到 github 上：
+
+```bash
+git push origin <branch-name>
+```
+
+进行提测。若通过提测，则在 github 上提交 pr 来进行分支合并。
+
+当开发到一半需要和 `main` 同步（一般见于遇到 bug 被其他人修复），使用 `rebase` 来同步而不是 `merge`：
+
+```
+# 首先确保自己在需要被同步的分支上，例如自己的开发分支
+git checkout <branch-name>
+# 使用 rebase 同步 main 分支
+git rebase main
+```
+
+git commit message 可参考 commit 规范：https://zhuanlan.zhihu.com/p/182553920
 合并时候的 commit message 需要遵守 commit 规范：https://zhuanlan.zhihu.com/p/182553920
