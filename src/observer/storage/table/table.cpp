@@ -448,6 +448,20 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
+RC Table::update_record(const Record &old_record, Record &new_record) {
+  RC rc = RC::SUCCESS
+  // TODO(update)
+  // for (Index *index : indexes_) {
+  //   rc = index->update_entry()
+  // }
+
+  // 得到旧的 
+
+  rc = record_handler_->update_record
+
+}
+
+
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
 {
   RC rc = RC::SUCCESS;
