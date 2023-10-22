@@ -14,7 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <cstdint>
 #include <string>
+#include "src/observer/common/rc.h"
+#include <cstring>
 
 /**
  * @brief 属性的类型
@@ -26,11 +29,69 @@ enum AttrType
   CHARS,          ///< 字符串类型
   INTS,           ///< 整数类型(4字节)
   FLOATS,         ///< 浮点数类型(4字节)
+  DATES,          ///< date int32_t
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
 
 const char *attr_type_to_string(AttrType type);
 AttrType attr_type_from_string(const char *s);
+
+
+//class date
+class date
+{
+ public:
+  date() = default;
+  date(int32_t val){ datevalue = val; }
+  date(const char *str)
+  {
+    string_to_date(str);
+    
+  }
+  const int32_t *get_date_value_addr() const { return &datevalue; }
+  const int32_t get_date_value() const { return datevalue; }
+  void set_date_value(int32_t val){ datevalue = val; }
+  /**
+   * @brief 将字符串转换为date
+   * 
+   * @param str 
+   * @param date 
+   * @return RC 
+   */
+  inline RC string_to_date(const char *str)
+  {  
+    int year = 0;
+    int month = 0;
+    int day = 0;
+    int ret = sscanf(str, "%d-%d-%d", &year, &month, &day);
+    int32_t int_value = 0;
+    if (ret != 3) // 其实就是等于 
+    {
+      memcpy(&int_value, str, sizeof(int32_t));
+    } 
+    else {
+      int_value = year * 10000 + month * 100 + day;
+    }
+    set_date_value(int_value);
+    return RC::SUCCESS;
+  }
+
+  /**
+   * @brief 判断是否是闰年
+   * 
+   * @param year 
+   * @return true 
+   * @return false 
+   */
+  inline bool is_leap_year(int year)
+  {
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 ==0;
+  }
+private:
+ int32_t datevalue;
+
+};
+// class date
 
 /**
  * @brief 属性的值
@@ -49,6 +110,7 @@ public:
   explicit Value(int val);
   explicit Value(float val);
   explicit Value(bool val);
+  explicit Value(date val);
   explicit Value(const char *s, int len = 0);
 
   Value(const Value &other) = default;
@@ -66,8 +128,11 @@ public:
   void set_int(int val);
   void set_float(float val);
   void set_boolean(bool val);
+  void set_date(date val);
   void set_string(const char *s, int len = 0);
   void set_value(const Value &value);
+
+  bool check_date(date val) const;
 
   std::string to_string() const;
 
@@ -93,7 +158,8 @@ public:
   float get_float() const;
   std::string get_string() const;
   bool get_boolean() const;
-
+  date get_date() const;
+  std::string get_date_str() const;
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;
@@ -103,5 +169,6 @@ private:
     float float_value_;
     bool bool_value_;
   } num_value_;
+  date date_value_;
   std::string str_value_;
 };

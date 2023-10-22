@@ -322,6 +322,15 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
         copy_len = data_len + 1;
       }
     }
+    // // 输出 value.data() 到 test
+    // auto *test = (char *)malloc(copy_len);
+    // memcpy(test, value.data(), copy_len);
+    // // test 转成 int32_t
+    // int32_t int_value = 0;
+    // memcpy(&int_value, test, copy_len);
+    // // int32_t 转成 date
+    // date date_value = date(int_value);
+
     memcpy(record_data + field->offset(), value.data(), copy_len);
   }
 
