@@ -62,6 +62,13 @@ public:
   virtual RC delete_entry(const char *record, const RID *rid) = 0;
 
   /**
+   * @brief 更新一条数据
+   * 
+   * @param[in] rid    更新的记录的位置
+   */
+  // virtual RC update_entry(const RID *rid, const char *old_record_data) = 0;
+
+  /**
    * @brief 创建一个索引数据的扫描器
    * 
    * @param left_key 要扫描的左边界
