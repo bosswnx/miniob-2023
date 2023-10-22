@@ -67,6 +67,6 @@ public:
   const char *get_data(const Record &record);
 
 private:
-  const Table *table_ = nullptr;
-  const FieldMeta *field_ = nullptr;
+  const Table *table_ = nullptr; // 这是个数组
+  const FieldMeta *field_ = nullptr; // 这是个数组
 };

@@ -27,6 +27,7 @@ SelectStmt::~SelectStmt()
   }
 }
 
+// 把该表的所有属性（字段）加入到field_metas中
 static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
 {
   const TableMeta &table_meta = table->table_meta();
@@ -46,6 +47,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // collect tables in `from` statement
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
+
+  // 遍历查询的表
+  // 1. 检查表是否存在
+  // 2. 将表加入到tables中
+  // 3. 将表加入到table_map中
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
     const char *table_name = select_sql.relations[i].c_str();
     if (nullptr == table_name) {
@@ -68,9 +74,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
+    // 如果表名为空，且属性名为*，则将所有表的所有属性加入到query_fields中
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
       for (Table *table : tables) {
+        // wildcard: 通配符
         wildcard_fields(table, query_fields);
       }
 
@@ -78,6 +86,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       const char *table_name = relation_attr.relation_name.c_str();
       const char *field_name = relation_attr.attribute_name.c_str();
 
+      // table_name为*，且field_name不为*，则报错
       if (0 == strcmp(table_name, "*")) {
         if (0 != strcmp(field_name, "*")) {
           LOG_WARN("invalid field name while table is *. attr=%s", field_name);
