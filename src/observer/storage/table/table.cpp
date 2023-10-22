@@ -12,10 +12,13 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <fstream>
 #include <limits.h>
 #include <string.h>
 #include <algorithm>
 #include <utility>
+#include <string>
+#include <unistd.h>
 
 #include "common/defs.h"
 #include "storage/table/table.h"
@@ -183,6 +186,23 @@ RC Table::open(const char *meta_file, const char *base_dir)
   return rc;
 }
 
+RC Table::drop() {
+  // delete data_file
+  std::string data_file = table_data_file(base_dir_.c_str(), table_meta_.name());
+  unlink(data_file.c_str());
+  // delete index file
+  auto index_num = table_meta_.index_num();
+  for (int i = 0; i < index_num; i++) {
+    auto *index_meta = table_meta_.index(i);
+    std::string index_file = table_index_file(base_dir_.c_str(), name(), index_meta->name());
+    unlink(index_file.c_str());
+  }
+  // delete meta file
+  auto meta_file = table_meta_file(base_dir_.c_str(), name());
+  unlink(meta_file.c_str());
+  return RC::SUCCESS;
+}
+
 RC Table::insert_record(Record &record)
 {
   RC rc = RC::SUCCESS;
@@ -309,7 +329,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   return RC::SUCCESS;
 }
 
-RC Table::init_record_handler(const char *base_dir)
+RC Table:: init_record_handler(const char *base_dir)
 {
   std::string data_file = table_data_file(base_dir, table_meta_.name());
 
