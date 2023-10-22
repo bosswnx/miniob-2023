@@ -14,12 +14,12 @@ See the Mulan PSL v2 for more details. */
 
 #include <sstream>
 #include "sql/parser/value.h"
-#include "storage/field/field.h"
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
+#include "value.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans", "dates"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -53,10 +53,8 @@ Value::Value(bool val)
   set_boolean(val);
 }
 
-Value::Value(const char *s, int len /*= 0*/)
-{
-  set_string(s, len);
-}
+Value::Value(date val) { set_date(val); }
+Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
 void Value::set_data(char *data, int length)
 {
@@ -74,6 +72,11 @@ void Value::set_data(char *data, int length)
     } break;
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
+      length_ = length;
+    } break;
+    case DATES: {
+      
+      date_value_ = date(data);
       length_ = length;
     } break;
     default: {
@@ -99,6 +102,13 @@ void Value::set_boolean(bool val)
   attr_type_ = BOOLEANS;
   num_value_.bool_value_ = val;
   length_ = sizeof(val);
+}
+void Value::set_date(date val)
+{
+  attr_type_ = DATES;
+  date_value_ = val;
+  length_ = sizeof(val.get_date_value());
+
 }
 void Value::set_string(const char *s, int len /*= 0*/)
 {
@@ -127,6 +137,9 @@ void Value::set_value(const Value &value)
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
+    case DATES: {
+      set_date(value.get_date());
+    } break;
     case UNDEFINED: {
       ASSERT(false, "got an invalid value type");
     } break;
@@ -139,6 +152,9 @@ const char *Value::data() const
     case CHARS: {
       return str_value_.c_str();
     } break;
+    case DATES: {
+      return (const char *)date_value_.get_date_value_addr();
+    }
     default: {
       return (const char *)&num_value_;
     } break;
@@ -157,6 +173,9 @@ std::string Value::to_string() const
     } break;
     case BOOLEANS: {
       os << num_value_.bool_value_;
+    } break;
+    case DATES: {
+      os << get_date_str();
     } break;
     case CHARS: {
       os << str_value_;
@@ -177,6 +196,11 @@ int Value::compare(const Value &other) const
       } break;
       case FLOATS: {
         return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_);
+      } break;
+      case DATES: {
+        int32_t this_date = get_date().get_date_value();
+        int32_t other_date = other.get_date().get_date_value();
+        return common::compare_int((void *)&this_date, (void *)&other_date);
       } break;
       case CHARS: {
         return common::compare_string((void *)this->str_value_.c_str(),
@@ -202,6 +226,31 @@ int Value::compare(const Value &other) const
   return -1;  // TODO return rc?
 }
 
+bool Value::check_date(date val) const {
+  int year = 0;
+  int month = 0;
+  int day = 0;
+  int32_t int_value = val.get_date_value();
+  year = int_value / 10000;
+  month = (int_value % 10000) / 100;
+  day = int_value % 100;
+  if((year < 1900 || year > 9999) || (month <= 0 || month > 12) || (day <= 0 || day > 31))
+  {
+    return false;
+  }
+  int max_day_in_month[] = {31,29,31,30,31,30,31,31,30,31,30,31};
+  const int max_day = max_day_in_month[month - 1];
+  if(day > max_day)
+  {
+    return false;
+  }
+  if (month == 2 && day > 28 && !val.is_leap_year(year))
+  {
+    return false;
+  }
+  return true;
+}
+
 int Value::get_int() const
 {
   switch (attr_type_) {
@@ -212,22 +261,54 @@ int Value::get_int() const
         LOG_TRACE("failed to convert string to number. s=%s, ex=%s", str_value_.c_str(), ex.what());
         return 0;
       }
-    }
+    } break;
     case INTS: {
       return num_value_.int_value_;
-    }
+    } break;
     case FLOATS: {
       return (int)(num_value_.float_value_);
-    }
+    } break;
+    case DATES: {
+      return get_date().get_date_value();
+    } break;
     case BOOLEANS: {
       return (int)(num_value_.bool_value_);
-    }
+    } break;
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);
       return 0;
-    }
+    } break;
   }
   return 0;
+}
+
+date Value::get_date() const
+{
+  return date_value_;
+}
+
+// ;get date string
+std::string Value::get_date_str() const
+{
+  // date_value_ 转成 char* 类型。date_value_ 是一个date类型，本质是一个int32_t类型的数据, 存储方式：YYYYMMDD
+  auto date_value = date_value_.get_date_value();
+  int year = date_value / 10000;
+  int month = (date_value % 10000) / 100;
+  int day = date_value % 100;
+  std::string res;
+  res += std::to_string(year);
+  if(month < 10)
+  {
+    res += "-0" + std::to_string(month);
+  } else {
+    res += "-" + std::to_string(month);
+  }
+  if(day < 10) {
+    res += "-0" + std::to_string(day);
+  } else {
+    res += "-" + std::to_string(day);
+  }
+  return res;
 }
 
 float Value::get_float() const
@@ -247,6 +328,9 @@ float Value::get_float() const
     case FLOATS: {
       return num_value_.float_value_;
     } break;
+    case DATES: {
+      return float(get_date().get_date_value());
+    }break;
     case BOOLEANS: {
       return float(num_value_.bool_value_);
     } break;
@@ -287,6 +371,10 @@ bool Value::get_boolean() const
     case INTS: {
       return num_value_.int_value_ != 0;
     } break;
+    case DATES :{
+      
+      return get_date().get_date_value() != 0;
+    }
     case FLOATS: {
       float val = num_value_.float_value_;
       return val >= EPSILON || val <= -EPSILON;

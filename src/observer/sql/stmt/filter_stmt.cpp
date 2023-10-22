@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/parser/value.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
@@ -89,6 +90,16 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   }
 
   filter_unit = new FilterUnit;
+
+  if (condition.right_value.attr_type() == AttrType::DATES) {
+    //判断日期是否合法
+    if (!condition.right_value.check_date(condition.right_value.get_date())) {
+      LOG_WARN("date is invalid. table=%s, field=%s, field type=%d, value_type=%d",
+          condition.left_attr.relation_name.c_str(), condition.left_attr.attribute_name.c_str(),
+          condition.right_value.attr_type(), condition.right_value.attr_type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  }
 
   if (condition.left_is_attr) {
     Table *table = nullptr;
