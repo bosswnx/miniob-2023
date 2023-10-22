@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/logical_operator.h"
 #include "sql/parser/parse_defs.h"
+#include <utility> // pair
 
 /**
  * @brief Update 逻辑算子
@@ -25,7 +26,7 @@ See the Mulan PSL v2 for more details. */
 class UpdateLogicalOperator : public LogicalOperator
 {
 public:
-  UpdateLogicalOperator(Table *table, Value values); // 暂时支持单个值
+  UpdateLogicalOperator(Table *table, std::pair<Field*, Value*> *values_with_field);
   virtual ~UpdateLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -34,11 +35,14 @@ public:
   }
 
   Table *table() const { return table_; }
-  const Value &values() const { return values_; } // 暂时支持单个值
-  Value &values() { return values_; } // 暂时支持单个值
+  // const Value &values() const { return values_; } // 暂时支持单个值
+  // Value &values() { return values_; } // 暂时支持单个值
+  const std::pair<Field*, Value*> *values_with_field() const { return values_with_field_; }
+  std::pair<Field*, Value*> *values_with_field() { return values_with_field_; }
 
 private:
   Table *table_ = nullptr;
 //   std::vector<Value> values_;
-  Value values_; // 暂时支持单个值
+  // Value values_; // 暂时支持单个值
+  std::pair<Field*, Value*> *values_with_field_ = nullptr;
 };

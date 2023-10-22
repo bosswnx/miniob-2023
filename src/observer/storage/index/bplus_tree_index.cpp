@@ -97,6 +97,23 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid)
   return index_handler_.delete_entry(record + field_meta_.offset(), rid);
 }
 
+// RC BplusTreeIndex::update_entry(const RID *rid, const char *old_record_data)
+// {
+//   // 其实就是先删除再插入
+//   // return index_handler_.update_entry(old_record_data + field_meta_.offset(), rid, values_with_field);
+//   RC rc = index_handler_.delete_entry(old_record_data + field_meta_.offset(), rid);
+//   if (rc != RC::SUCCESS) {
+//     LOG_WARN("failed to delete entry. rc=%d:%s", rc, strrc(rc));
+//     return rc;
+//   }
+//   rc = index_handler_.insert_entry(old_record_data + field_meta_.offset(), rid);
+//   if (rc != RC::SUCCESS) {
+//     LOG_WARN("failed to insert entry. rc=%d:%s", rc, strrc(rc));
+//     return rc;
+//   }
+//   return RC::SUCCESS;
+// }
+
 IndexScanner *BplusTreeIndex::create_scanner(
     const char *left_key, int left_len, bool left_inclusive, const char *right_key, int right_len, bool right_inclusive)
 {

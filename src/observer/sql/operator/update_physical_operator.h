@@ -16,17 +16,19 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse.h"
+#include <utility> // pair
 
+class Trx;
 class UpdateStmt;
 
 /**
- * @brief 插入物理算子
- * @ingroup PhysicalOperator
+ * @brief Update 物理算子
+ * @ingroup UpdateOperator
  */
 class UpdatePhysicalOperator : public PhysicalOperator
 {
 public:
-  UpdatePhysicalOperator(Table *table, Value &&values);
+  UpdatePhysicalOperator(Table *table, std::pair<Field*, Value*> *values_with_field);
 
   virtual ~UpdatePhysicalOperator() = default;
 
@@ -34,6 +36,8 @@ public:
   {
     return PhysicalOperatorType::UPDATE;
   }
+
+  std::pair<Field*, Value*> *values_with_field() const { return values_with_field_; }
 
   RC open(Trx *trx) override;
   RC next() override;
@@ -43,6 +47,8 @@ public:
 
 private:
   Table *table_ = nullptr;
-//   std::vector<Value> values_;
-  Value values_; // 暂时支持单个值
+  // std::vector<Value> values_;
+  // Value values_; // 暂时支持单个值
+  std::pair<Field*, Value*> *values_with_field_ = nullptr;
+  Trx *trx_ = nullptr;
 };

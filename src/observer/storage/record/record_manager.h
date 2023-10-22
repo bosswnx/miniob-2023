@@ -20,6 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/trx/latch_memo.h"
 #include "storage/record/record.h"
 #include "common/lang/bitmap.h"
+#include "storage/field/field.h"
+
+#include <utility>
 
 class ConditionFilter;
 class RecordPageHandler;
@@ -167,6 +170,14 @@ public:
   RC insert_record(const char *data, RID *rid);
 
   /**
+   * @brief 更新指定的记录
+   *
+   * @author Soulter
+   * @date 2023/10/21
+   */
+  RC update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field);
+
+  /**
    * @brief 数据库恢复时，在指定位置插入数据
    * 
    * @param data 要插入的数据行
@@ -274,6 +285,16 @@ public:
    * @param rid         返回该记录的标识符
    */
   RC insert_record(const char *data, int record_size, RID *rid);
+
+
+  /**
+   * @brief 更新指定文件中指定槽位的记录
+   * 
+   * @param rid         待更新记录的标识符
+   * @author Soulter
+   * @date 2023/10/21
+   */
+  RC update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field);
 
    /**
    * @brief 数据库恢复时，在指定文件指定位置插入数据

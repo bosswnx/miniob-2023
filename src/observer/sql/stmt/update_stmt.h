@@ -16,8 +16,11 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/rc.h"
 #include "sql/stmt/stmt.h"
+#include <utility> // pair
 
 class Table;
+class FilterStmt;
+class Field;
 
 /**
  * @brief 更新语句
@@ -26,10 +29,14 @@ class Table;
 class UpdateStmt : public Stmt 
 {
 public:
-  UpdateStmt() = default;
-  UpdateStmt(Table *table, Value *values, int value_amount);
+  // 使用 pair 存储字段名和 Value
+  UpdateStmt(Table *table, FilterStmt *filter_stmt, std::pair<Field*, Value*> *values_with_field, int value_amount);
 
-  ~UpdateStmt() override = default;
+  ~UpdateStmt() override;
+  FilterStmt *filter_stmt() const
+  {
+    return filter_stmt_;
+  }
   StmtType type() const override
   {
     return StmtType::UPDATE;
@@ -43,9 +50,13 @@ public:
   {
     return table_;
   }
-  Value *values() const
+  // Value *values() const
+  // {
+  //   return values_;
+  // }
+  std::pair<Field*, Value*> *values_with_field() const
   {
-    return values_;
+    return values_with_field_;
   }
   int value_amount() const
   {
@@ -54,6 +65,7 @@ public:
 
 private:
   Table *table_ = nullptr;
-  Value *values_ = nullptr;
+  std::pair<Field*, Value*> *values_with_field_ = nullptr;
   int value_amount_ = 0;
+  FilterStmt *filter_stmt_ = nullptr;
 };

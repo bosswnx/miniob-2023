@@ -24,6 +24,7 @@ class SelectStmt;
 class FilterStmt;
 class InsertStmt;
 class DeleteStmt;
+class UpdateStmt;
 class ExplainStmt;
 class LogicalOperator;
 

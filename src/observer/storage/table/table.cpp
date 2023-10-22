@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <limits.h>
 #include <string.h>
 #include <algorithm>
+#include <utility>
 
 #include "common/defs.h"
 #include "storage/table/table.h"
@@ -448,17 +449,54 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const Record &old_record, Record &new_record) {
-  RC rc = RC::SUCCESS
-  // TODO(update)
-  // for (Index *index : indexes_) {
-  //   rc = index->update_entry()
-  // }
+RC Table::update_record(const Record &old_record, std::pair<Field*, Value*> *values_with_field) {
+  RC rc = RC::SUCCESS;
 
-  // 得到旧的 
+  // 删除索引
+  for (Index *index : indexes_) {
+    // rc = index->update_entry(&old_record.rid(), old_record.data())
+    rc = index->delete_entry(old_record.data(), &old_record.rid());
+    // if (rc != RC::SUCCESS) {
+    //   if (rc != RC::RECORD_INVALID_KEY) {
+    //     LOG_WARN("failed to update entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+    //              name(), index->index_meta().name(), old_record.rid().to_string().c_str(), strrc(rc));
+    //     return rc;
+    //   }
+    // }
+    ASSERT(RC::SUCCESS == rc, 
+           "[update index] failed to delete prev entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+  }
 
-  rc = record_handler_->update_record
+  // 优化：这里的old_record中已经有 data 了，可以直接用，传到update_record()中
+  rc = record_handler_->update_record(&old_record.rid(), values_with_field);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
+    return rc;
+  }
 
+  // 添加索引
+  int col_offset = values_with_field->first->meta()->offset();
+  int col_len = values_with_field->first->meta()->len();
+  // 将const char*转换为char*
+  // char *old_record_data = const_cast<char *>(old_record.data());
+  // memcpy(old_record_data + col_offset, values_with_field->second->data(), col_len);
+  // 到这里之后，old_record中的 data 已经被修改了，可以直接传入
+  rc = insert_entry_of_indexes(old_record.data(), old_record.rid());
+  if (rc != RC::SUCCESS) { // 可能出现了键值重复
+    RC rc2 = delete_entry_of_indexes(old_record.data(), old_record.rid(), false/*error_on_not_exists*/);
+    if (rc2 != RC::SUCCESS) {
+      LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+    rc2 = record_handler_->delete_record(&old_record.rid());
+    if (rc2 != RC::SUCCESS) {
+      LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+  }
+
+  return rc;
 }
 
 

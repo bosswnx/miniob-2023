@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <functional>
+#include <utility>
 #include "storage/table/table_meta.h"
 
 struct RID;
@@ -25,6 +26,7 @@ class RecordFileScanner;
 class ConditionFilter;
 class DefaultConditionFilter;
 class Index;
+class Field;
 class IndexScanner;
 class RecordDeleter;
 class Trx;
@@ -77,7 +79,7 @@ public:
    */
   RC insert_record(Record &record);
   RC delete_record(const Record &record);
-  RC update_record(const Record &old_record, Record &new_record);
+  RC update_record(const Record &old_record, std::pair<Field*, Value*> *values_with_field);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
 

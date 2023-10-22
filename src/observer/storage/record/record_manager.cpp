@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/bitmap.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
+#include <utility>
 
 using namespace common;
 
@@ -205,6 +206,31 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   }
 
   // LOG_TRACE("Insert record. rid page_num=%d, slot num=%d", get_page_num(), index);
+  return RC::SUCCESS;
+}
+
+RC RecordPageHandler::update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field)
+{
+  ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
+
+  if (rid->slot_num >= page_header_->record_capacity) {
+    LOG_ERROR("Invalid slot_num %d, exceed page's record capacity, page_num %d.", rid->slot_num, frame_->page_num());
+    return RC::RECORD_INVALID_RID;
+  }
+
+  Bitmap bitmap(bitmap_, page_header_->record_capacity);
+  if (!bitmap.get_bit(rid->slot_num)) {
+    LOG_ERROR("Invalid slot_num %d, slot is empty, page_num %d.", rid->slot_num, frame_->page_num());
+    return RC::RECORD_NOT_EXIST;
+  }
+
+  char *record_data = get_record_data(rid->slot_num); // 获取原先记录的数据首地址
+  int col_offset = values_with_field->first->meta()->offset();
+  int col_len = values_with_field->first->meta()->len();
+  memcpy(record_data + col_offset, values_with_field->second->data(), col_len);
+  // memcpy(record_data, data, record_size);
+  frame_->mark_dirty();
+
   return RC::SUCCESS;
 }
 
@@ -407,6 +433,25 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   // 找到空闲位置
   return record_page_handler.insert_record(data, rid);
 }
+
+RC RecordFileHandler::update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field)
+{
+  RC ret = RC::SUCCESS;
+
+  RecordPageHandler record_page_handler;
+
+  // 当前要访问free_pages对象，所以需要加锁。在非并发编译模式下，不需要考虑这个锁
+  lock_.lock();
+  ret = record_page_handler.init(*disk_buffer_pool_, rid->page_num, false /*readonly*/);
+  if (ret != RC::SUCCESS) {
+    LOG_WARN("failed to init record page handler. page num=%d, rc=%d:%s", rid->page_num, ret, strrc(ret));
+    return ret;
+  }
+  lock_.unlock();
+
+  return record_page_handler.update_record(rid, values_with_field);
+}
+
 
 RC RecordFileHandler::recover_insert_record(const char *data, int record_size, const RID &rid)
 {
