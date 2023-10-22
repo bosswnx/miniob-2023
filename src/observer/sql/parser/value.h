@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <cstdint>
 #include <string>
 #include "src/observer/common/rc.h"
+#include <cstring>
 
 /**
  * @brief 属性的类型
