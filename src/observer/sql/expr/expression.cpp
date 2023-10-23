@@ -89,8 +89,24 @@ ComparisonExpr::~ComparisonExpr()
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC rc = RC::SUCCESS;
-  int cmp_result = left.compare(right);
   result = false;
+  // 这里把 like 算作一种特殊的算符（comporator）
+  if (comp_ == CompOp::LIKE) {
+    if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
+      LOG_PANIC("like operator only support string type now");
+      return RC::INVALID_ARGUMENT;
+    }
+    result = left.like(left.data(), right.data());
+    return rc;
+  } else if (comp_ == CompOp::NOT_LIKE) {
+    if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
+      LOG_PANIC("like operator only support string type now");
+      return RC::INVALID_ARGUMENT;
+    }
+    result = !left.like(left.data(), right.data());
+    return rc;
+  }
+  int cmp_result = left.compare(right);
   switch (comp_) {
     case EQUAL_TO: {
       result = (0 == cmp_result);

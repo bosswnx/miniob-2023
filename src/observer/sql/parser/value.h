@@ -138,6 +138,17 @@ public:
 
   int compare(const Value &other) const;
 
+  /*
+    * @brief 判断当前的值是否与模板匹配(like)
+    * 
+    * @param s
+    * @param tmplt_s
+    * @return true
+    * @return false
+    * @auther Soulter
+  */
+  bool like(const char *s, const char *tmplt_s) const;
+
   const char *data() const;
   int length() const
   {

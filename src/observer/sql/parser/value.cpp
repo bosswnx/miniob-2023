@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 #include "value.h"
+#include <cstring>
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans", "dates"};
 
@@ -224,6 +225,55 @@ int Value::compare(const Value &other) const
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
+}
+
+// like 语句比较
+bool Value::like(const char* s, const char *tmplt_s) const {
+  int s_len = strlen(s);
+  int tmplt_len = strlen(tmplt_s);
+
+  // fast-fail [deprecated]
+  // 不能这样判断，因为tmplt可以有连续的%，比如%hello%
+  // if (s_len < tmplt_len) {
+  //   return false;
+  // }
+
+  int i = 0, j = 0; // i: tmplt_s; j: s
+  bool is_wildcard = false; // %: 0 or more characters; _: 1 character
+  int t = -1; // Initialize t to -1.
+
+  while (j <= s_len) {
+      if (i < tmplt_len && tmplt_s[i] == '%') {
+          is_wildcard = true;
+          t = j; // Remember the starting position for %
+          while (i < tmplt_len && tmplt_s[i] == '%') ++i; // Skip continuous %
+
+          if (i >= tmplt_len) return true;
+
+          while (j <= s_len) {
+              if (like(s + j, tmplt_s + i))
+                  return true;
+              ++j;
+          }
+      }
+
+      if (is_wildcard && i < tmplt_len && (tmplt_s[i] == s[j] || tmplt_s[i] == '_')) {
+          is_wildcard = false;
+      } else if (!is_wildcard && i < tmplt_len && s[j] != tmplt_s[i] && tmplt_s[i] != '_') {
+          return false;
+      }
+
+      ++j;
+      if (!is_wildcard) ++i;
+
+      if (i >= tmplt_len && j < s_len && !is_wildcard) {
+          return false;
+      }
+  }
+
+  if (i >= tmplt_len) return true; // If we reached the end of the template string
+
+  return false;
 }
 
 bool Value::check_date(date val) const {

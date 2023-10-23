@@ -149,6 +149,7 @@ RC LogicalPlanGenerator::create_plan(
                                           ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
                                           : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
 
+    // 对条件进行比较（筛选）
     ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
     cmp_exprs.emplace_back(cmp_expr);
   }
