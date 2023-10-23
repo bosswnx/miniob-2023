@@ -2880,7 +2880,7 @@ yyreduce:
       } else {
         (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
       }
-      (yyval.rel_attr_list)->assign((yyvsp[-1].rel_attr_list)->begin(), (yyvsp[-1].rel_attr_list)->end());
+      (yyval.rel_attr_list)->insert((yyval.rel_attr_list)->end(), (yyvsp[-1].rel_attr_list)->begin(), (yyvsp[-1].rel_attr_list)->end());
       delete (yyvsp[-1].rel_attr_list);
     }
 #line 2205 "yacc_sql.cpp"
@@ -2889,7 +2889,7 @@ yyreduce:
   case 66: /* aggre_attr: MAX LBRACE RBRACE  */
 #line 530 "yacc_sql.y"
                       {
-      (yyval.rel_attr_list) = nullptr;
+      (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
     }
 #line 2213 "yacc_sql.cpp"
     break;
@@ -2897,7 +2897,7 @@ yyreduce:
   case 67: /* aggre_attr: MIN LBRACE RBRACE  */
 #line 533 "yacc_sql.y"
                         {
-      (yyval.rel_attr_list) = nullptr;
+      (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
     }
 #line 2221 "yacc_sql.cpp"
     break;
@@ -2905,7 +2905,7 @@ yyreduce:
   case 68: /* aggre_attr: SUM LBRACE RBRACE  */
 #line 536 "yacc_sql.y"
                         {
-      (yyval.rel_attr_list) = nullptr;
+      (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
     }
 #line 2229 "yacc_sql.cpp"
     break;
@@ -2913,7 +2913,7 @@ yyreduce:
   case 69: /* aggre_attr: CNT LBRACE RBRACE  */
 #line 539 "yacc_sql.y"
                         {
-      (yyval.rel_attr_list) = nullptr;
+      (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
     }
 #line 2237 "yacc_sql.cpp"
     break;
@@ -2921,7 +2921,7 @@ yyreduce:
   case 70: /* aggre_attr: AVG LBRACE RBRACE  */
 #line 542 "yacc_sql.y"
                         {
-      (yyval.rel_attr_list) = nullptr;
+      (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
     }
 #line 2245 "yacc_sql.cpp"
     break;
@@ -3024,7 +3024,7 @@ yyreduce:
       } else {
         (yyval.rel_attr_list) = new std::vector<RelAttrSqlNode>;
       }
-      (yyval.rel_attr_list)->assign((yyvsp[-1].rel_attr_list)->begin(), (yyvsp[-1].rel_attr_list)->end());
+      (yyval.rel_attr_list)->insert((yyval.rel_attr_list)->end(), (yyvsp[-1].rel_attr_list)->begin(), (yyvsp[-1].rel_attr_list)->end());
       delete (yyvsp[-1].rel_attr_list);
     }
 #line 2342 "yacc_sql.cpp"

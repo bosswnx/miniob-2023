@@ -523,26 +523,26 @@ select_attr:
       } else {
         $$ = new std::vector<RelAttrSqlNode>;
       }
-      $$->assign($1->begin(), $1->end());
+      $$->insert($$->end(), $1->begin(), $1->end());
       delete $1;
     }
     ;
 
 aggre_attr:
     MAX LBRACE RBRACE {
-      $$ = nullptr;
+      $$ = new std::vector<RelAttrSqlNode>;
     }
     | MIN LBRACE RBRACE {
-      $$ = nullptr;
+      $$ = new std::vector<RelAttrSqlNode>;
     }
     | SUM LBRACE RBRACE {
-      $$ = nullptr;
+      $$ = new std::vector<RelAttrSqlNode>;
     }
     | CNT LBRACE RBRACE {
-      $$ = nullptr;
+      $$ = new std::vector<RelAttrSqlNode>;
     }
     | AVG LBRACE RBRACE {
-      $$ = nullptr;
+      $$ = new std::vector<RelAttrSqlNode>;
     }
     | MAX LBRACE rel_attr attr_list RBRACE {
       if ($4 != nullptr) {
@@ -607,7 +607,7 @@ aggre_list:
       } else {
         $$ = new std::vector<RelAttrSqlNode>;
       }
-      $$->assign($2->begin(), $2->end());
+      $$->insert($$->end(), $2->begin(), $2->end());
       delete $2;
     }
     | COMMA rel_attr aggre_list {
