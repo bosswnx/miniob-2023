@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/bitmap.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
+#include <cstdint>
 #include <utility>
 
 using namespace common;

@@ -544,6 +544,6 @@ extern int yylex \
 #line 139 "lex_sql.l"
 
 
-#line 548 "lex_sql.h"
+#line 547 "lex_sql.h"
 #undef yyIN_HEADER
 #endif /* yyHEADER_H */
