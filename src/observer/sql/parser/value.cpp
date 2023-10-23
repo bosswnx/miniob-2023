@@ -234,7 +234,7 @@ bool Value::check_date(date val) const {
   year = int_value / 10000;
   month = (int_value % 10000) / 100;
   day = int_value % 100;
-  if((year < 1900 || year > 9999) || (month <= 0 || month > 12) || (day <= 0 || day > 31))
+  if((year < 1000 || year > 9999) || (month <= 0 || month > 12) || (day <= 0 || day > 31))
   {
     return false;
   }
