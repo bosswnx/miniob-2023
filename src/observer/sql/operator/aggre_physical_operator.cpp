@@ -109,7 +109,7 @@ RC AggregationPhysicalOperator::next() {
           if (cells[i].attr_type() == INTS) {
             cells[i].set_int(cells[i].get_int() + cell.get_int());
           } else {
-            cells[i].set_float(cells[i].get_float() + cells[i].get_float());
+            cells[i].set_float(cells[i].get_float() + cell.get_float());
           }
         } break;
         case AggreType::AVG: {
