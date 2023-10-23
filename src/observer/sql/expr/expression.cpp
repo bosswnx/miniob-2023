@@ -96,7 +96,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       LOG_PANIC("like operator only support string type now");
       return RC::INVALID_ARGUMENT;
     }
-    result = left.like(right);
+    result = left.like(left.data(), right.data());
     return rc;
   }
   int cmp_result = left.compare(right);

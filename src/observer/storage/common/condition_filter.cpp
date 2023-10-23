@@ -144,7 +144,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       LOG_PANIC("like operation only support char type now");
       return false;
     }
-    return left_value.like(right_value);
+    return left_value.like(right_value.data(), right_value.data());
   }
 
   int cmp_result = left_value.compare(right_value);

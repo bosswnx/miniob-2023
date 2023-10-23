@@ -141,12 +141,13 @@ public:
   /*
     * @brief 判断当前的值是否与模板匹配(like)
     * 
-    * @param tmplt 模板
-    * @return true 匹配
-    * @return false 不匹配
-    * @author Soulter
+    * @param s
+    * @param tmplt_s
+    * @return true
+    * @return false
+    * @auther Soulter
   */
-  bool like(const Value &tmplt) const;
+  bool like(const char *s, const char *tmplt_s) const;
 
   const char *data() const;
   int length() const
