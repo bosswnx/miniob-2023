@@ -70,13 +70,25 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   switch (stmt->type()) {
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
+      bool with_table_name = select_stmt->tables().size() > 1;
       if (select_stmt->is_aggre()) {
-        for (const auto &aggre : select_stmt->aggre_types()) {
-          schema.append_cell(aggre_to_string(aggre).c_str());
+        auto &aggre_types = select_stmt->aggre_types();
+        for (int i = 0; i < aggre_types.size(); i++) {
+          std::string alias = aggre_to_string(aggre_types[i]);
+          if (aggre_types[i] != AggreType::CNTALL) {
+            alias += "(";
+            auto &query_fields = select_stmt->query_fields();
+            if (with_table_name) {
+              alias += query_fields[i].table_name();
+              alias += ".";
+            }
+            alias += query_fields[i].field_name();
+            alias += ")";
+          }
+          schema.append_cell(alias.c_str());
         }
         break;
       }
-      bool with_table_name = select_stmt->tables().size() > 1;
 
       for (const Field &field : select_stmt->query_fields()) {
         if (with_table_name) {

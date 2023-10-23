@@ -45,6 +45,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     return RC::INVALID_ARGUMENT;
   }
 
+  if (select_sql.attributes.empty()) {
+    LOG_WARN("invalid argument. select attributes is empty");
+    return RC::INVALID_ARGUMENT;
+  }
+
   // collect tables in `from` statement
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
@@ -94,7 +99,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         auto *table = tables[0];
         auto *field_meta = table->table_meta().field(0);
         query_fields.push_back(Field(table, field_meta));
-        aggre_types.push_back(AggreType::CNT);
+        aggre_types.push_back(AggreType::CNTALL);
       } else {
         auto table_meta = tables[0]->table_meta();
         if (tables.size() > 1 || table_meta.field_num() > 1) {
@@ -103,6 +108,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         }
         auto *table = tables[0];
         auto *field_meta = table->table_meta().field(0);
+        if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
+          LOG_WARN("invalid aggregation function on DATES type.");
+          return RC::INVALID_ARGUMENT;
+        }
         query_fields.push_back(Field(table, field_meta));
         aggre_types.push_back(relation_attr.aggre_type);
       }
@@ -134,6 +143,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
           auto *table = tables[0];
           auto *field_meta = table->table_meta().field(0);
+          if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
+            LOG_WARN("invalid aggregation function on DATES type.");
+            return RC::INVALID_ARGUMENT;
+          }
           query_fields.push_back(Field(table, field_meta));
           aggre_types.push_back(relation_attr.aggre_type);
         }
@@ -159,6 +172,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               return RC::INVALID_ARGUMENT;
             }
             auto *field_meta = table->table_meta().field(0);
+            if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
+              LOG_WARN("invalid aggregation function on DATES type.");
+              return RC::INVALID_ARGUMENT;
+            }
             query_fields.push_back(Field(table, field_meta));
             aggre_types.push_back(relation_attr.aggre_type);
           }
@@ -187,7 +204,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
       }
-
+      if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
+        LOG_WARN("invalid aggregation function on DATES type.");
+        return RC::INVALID_ARGUMENT;
+      }
       query_fields.push_back(Field(table, field_meta));
       if (relation_attr.aggre_type != AggreType::NONE) {
         aggre_types.push_back(relation_attr.aggre_type);
