@@ -1,0 +1,12 @@
+create table like_test(id int, s char);
+insert into like_test values (1, 'hola')
+insert into like_test values (2, 'hell')
+insert into like_test values (3, 'test')
+insert into like_test values (4, 'aaaa')
+
+select * from like_test where s like '%a%'
+select * from like_test where s like 'h%'
+select * from like_test where s like '%a'
+select * from like_test where s like 'h%la'
+select * from like_test where s like '_ola%'
+select * from like_test where s like '_ola'

@@ -202,6 +202,51 @@ int Value::compare(const Value &other) const
   return -1;  // TODO return rc?
 }
 
+// like 语句比较
+bool Value::like(const Value &tmplt) const
+{
+  const char *s = this->data();
+  const char *tmplt_s = tmplt.data();
+  int s_len = this->length_;
+  int tmplt_len = tmplt.length_;
+
+  // fast-fail [deprecated]
+  // 不能这样判断，因为tmplt可以有连续的%，比如%hello%
+  // if (s_len < tmplt_len) {
+  //   return false;
+  // }
+
+  int i = 0, j = 0; // i: tmplt_s; j: s
+  bool is_wildcard = false; // %: 0 or more characters; _: 1 character
+
+  // helloworld
+  // h%   _orld
+
+  while (j < s_len) {
+    if (i < tmplt_len && tmplt_s[i] == '%') {
+      is_wildcard = true;
+      while (i < tmplt_len && tmplt_s[i] == '%') ++i; // skip continuous %
+    }
+
+    if (is_wildcard && i < tmplt_len && tmplt_s[i] == s[j]) {
+      is_wildcard = false;
+    }
+  
+    if (i < tmplt_len && s[j] != tmplt_s[i] && !is_wildcard && tmplt_s[i] != '_') {
+      return false;
+    }
+
+    ++j;
+    if (!is_wildcard) ++i;
+  }
+
+  if (is_wildcard && i < tmplt_len && tmplt_s[i] != '%') {
+    return false;
+  }
+
+  return true;
+}
+
 int Value::get_int() const
 {
   switch (attr_type_) {
