@@ -145,6 +145,12 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       return false;
     }
     return left_value.like(right_value.data(), right_value.data());
+  } else if (comp_op_ == NOT_LIKE) {
+    if (left_value.attr_type() != CHARS || right_value.attr_type() != CHARS) {
+      LOG_PANIC("like operation only support char type now");
+      return false;
+    }
+    return !left_value.like(right_value.data(), right_value.data());
   }
 
   int cmp_result = left_value.compare(right_value);

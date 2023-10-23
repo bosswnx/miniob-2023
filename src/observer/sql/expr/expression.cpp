@@ -98,6 +98,13 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     }
     result = left.like(left.data(), right.data());
     return rc;
+  } else if (comp_ == CompOp::NOT_LIKE) {
+    if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
+      LOG_PANIC("like operator only support string type now");
+      return RC::INVALID_ARGUMENT;
+    }
+    result = !left.like(left.data(), right.data());
+    return rc;
   }
   int cmp_result = left.compare(right);
   switch (comp_) {
