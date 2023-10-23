@@ -147,6 +147,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
+%type <rel_attr_list>       aggre_attr
+%type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -506,14 +508,7 @@ expression:
     ;
 
 select_attr:
-    '*' {
-      $$ = new std::vector<RelAttrSqlNode>;
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      $$->emplace_back(attr);
-    }
-    | rel_attr attr_list {
+    rel_attr aggre_list {
       if ($2 != nullptr) {
         $$ = $2;
       } else {
@@ -522,77 +517,126 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
+    | aggre_attr aggre_list {
+      if ($2 != nullptr) {
+        $$ = $2;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $$->assign($1->begin(), $1->end());
+      delete $1;
+    }
+    ;
+
+aggre_attr:
+    MAX LBRACE RBRACE {
+      $$ = nullptr;
+    }
+    | MIN LBRACE RBRACE {
+      $$ = nullptr;
+    }
+    | SUM LBRACE RBRACE {
+      $$ = nullptr;
+    }
+    | CNT LBRACE RBRACE {
+      $$ = nullptr;
+    }
+    | AVG LBRACE RBRACE {
+      $$ = nullptr;
+    }
+    | MAX LBRACE rel_attr attr_list RBRACE {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $3->aggre_type = AggreType::MAX;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | MIN LBRACE rel_attr attr_list RBRACE {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $3->aggre_type = AggreType::MIN;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | SUM LBRACE rel_attr attr_list RBRACE {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $3->aggre_type = AggreType::SUM;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | CNT LBRACE rel_attr attr_list RBRACE {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $3->aggre_type = AggreType::CNT;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    | AVG LBRACE rel_attr attr_list RBRACE {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $3->aggre_type = AggreType::AVG;
+      $$->emplace_back(*$3);
+      delete $3;
+    }
+    ;
+
+aggre_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA aggre_attr aggre_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $$->assign($2->begin(), $2->end());
+      delete $2;
+    }
+    | COMMA rel_attr aggre_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $$->emplace_back(*$2);
+      delete $2;
+    }
     ;
 
 rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
-      $$->aggre_type = AggreType::NONE;
       free($1);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
       $$->attribute_name = $3;
-      $$->aggre_type = AggreType::NONE;
       free($1);
       free($3);
     }
-    | MAX LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::MAX;
-      free($3);
-    }
-    | MIN LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::MIN;
-      free($3);
-    }
-    | CNT LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::CNT;
-      free($3);
-    }
-    | SUM LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::SUM;
-      free($3);
-    }
-    | AVG LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::AVG;
-      free($3);
-    }
-    | MAX LBRACE '*' RBRACE {
+    | '*' {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = "*";
-      $$->aggre_type = AggreType::MAX;
-    }
-    | MIN LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = "*";
-      $$->aggre_type = AggreType::MIN;
-    }
-    | CNT LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = "*";
-      $$->aggre_type = AggreType::CNT;
-    }
-    | SUM LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = "*";
-      $$->aggre_type = AggreType::SUM;
-    }
-    | AVG LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = "*";
-      $$->aggre_type = AggreType::AVG;
     }
     ;
 

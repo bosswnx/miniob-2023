@@ -76,7 +76,6 @@ extern int yydebug;
     TRX_ROLLBACK = 277,            /* TRX_ROLLBACK  */
     INT_T = 278,                   /* INT_T  */
     STRING_T = 279,                /* STRING_T  */
-<<<<<<< HEAD
     DATE_T = 280,                  /* DATE_T  */
     FLOAT_T = 281,                 /* FLOAT_T  */
     HELP = 282,                    /* HELP  */
@@ -99,6 +98,7 @@ extern int yydebug;
     LE = 299,                      /* LE  */
     GE = 300,                      /* GE  */
     NE = 301,                      /* NE  */
+<<<<<<< HEAD
     LK = 302,                      /* LK  */
     NLK = 303,                     /* NLK  */
     NUMBER = 304,                  /* NUMBER  */
@@ -140,6 +140,19 @@ extern int yydebug;
     SSS = 309,                     /* SSS  */
     UMINUS = 310                   /* UMINUS  */
 >>>>>>> cdf1404 (finish parser)
+=======
+    MAX = 302,                     /* MAX  */
+    MIN = 303,                     /* MIN  */
+    SUM = 304,                     /* SUM  */
+    CNT = 305,                     /* CNT  */
+    AVG = 306,                     /* AVG  */
+    NUMBER = 307,                  /* NUMBER  */
+    FLOAT = 308,                   /* FLOAT  */
+    ID = 309,                      /* ID  */
+    DATE_STR = 310,                /* DATE_STR  */
+    SSS = 311,                     /* SSS  */
+    UMINUS = 312                   /* UMINUS  */
+>>>>>>> dda9a4c (fix: parser)
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -148,7 +161,11 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
+<<<<<<< HEAD
 #line 103 "yacc_sql.y"
+=======
+#line 108 "yacc_sql.y"
+>>>>>>> dda9a4c (fix: parser)
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -167,7 +184,11 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
+<<<<<<< HEAD
 #line 135 "yacc_sql.hpp"
+=======
+#line 140 "yacc_sql.hpp"
+>>>>>>> dda9a4c (fix: parser)
 
 };
 typedef union YYSTYPE YYSTYPE;

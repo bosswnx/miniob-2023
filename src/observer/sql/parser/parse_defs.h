@@ -37,6 +37,7 @@ enum class AggreType {
   MIN,
   AVG,
   CNT,
+  CNTALL,
   SUM,
 };
 
@@ -50,6 +51,8 @@ inline std::string aggre_to_string(AggreType aggre_type) {
       return "AVG";
     case AggreType::CNT:
       return "COUNT";
+    case AggreType::CNTALL:
+      return "COUNT(*)";
     case AggreType::SUM:
       return "SUM";
     default:
