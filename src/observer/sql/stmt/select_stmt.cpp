@@ -204,9 +204,15 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
       }
-      if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN && relation_attr.aggre_type != AggreType::CNT) {
-        LOG_WARN("invalid aggregation function on DATES type.");
-        return RC::INVALID_ARGUMENT;
+      if (field_meta->type() == CHARS || field_meta->type() == DATES) {
+        switch (relation_attr.aggre_type) {
+          case AggreType::SUM:
+          case AggreType::AVG:
+            LOG_WARN("invalid aggregation function on CHARS type.");
+            return RC::INVALID_ARGUMENT;
+          default:
+            break;
+        }
       }
       query_fields.push_back(Field(table, field_meta));
       if (relation_attr.aggre_type != AggreType::NONE) {
