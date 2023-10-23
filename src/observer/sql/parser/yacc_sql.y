@@ -622,19 +622,24 @@ aggre_list:
 rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
+      $$->relation_name = "";
       $$->attribute_name = $1;
+      $$->aggre_type = AggreType::NONE;
       free($1);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
       $$->attribute_name = $3;
+      $$->aggre_type = AggreType::NONE;
       free($1);
       free($3);
     }
     | '*' {
       $$ = new RelAttrSqlNode;
+      $$->relation_name  = "";
       $$->attribute_name = "*";
+      $$->aggre_type = AggreType::NONE;
     }
     ;
 
