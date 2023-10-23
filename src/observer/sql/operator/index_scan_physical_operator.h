@@ -60,7 +60,7 @@ private:
 
   RecordPageHandler record_page_handler_;
   Record current_record_;
-  RowTuple tuple_;
+  RowTuple tuple_;  // 每次执行 next() 后算子得到的 tuple
 
   Value left_value_;
   Value right_value_;

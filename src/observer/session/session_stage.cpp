@@ -105,7 +105,7 @@ void SessionStage::handle_request(StageEvent *event)
 
   Communicator *communicator = sev->get_communicator();
   bool need_disconnect = false;
-  RC rc = communicator->write_result(sev, need_disconnect);
+  RC rc = communicator->write_result(sev, need_disconnect);  // 在这里运行算子，执行语句
   LOG_INFO("write result return %s", strrc(rc));
   if (need_disconnect) {
     Server::close_connection(communicator);
@@ -138,19 +138,19 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
 
-  rc = resolve_stage_.handle_request(sql_event);
+  rc = resolve_stage_.handle_request(sql_event);  // 生成 stmt
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
     return rc;
   }
   
-  rc = optimize_stage_.handle_request(sql_event);
+  rc = optimize_stage_.handle_request(sql_event);  // 将 stmt 转化为 physical operator
   if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
     LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
     return rc;
   }
   
-  rc = execute_stage_.handle_request(sql_event);
+  rc = execute_stage_.handle_request(sql_event);  // 生成输出 schema
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do execute. rc=%s", strrc(rc));
     return rc;

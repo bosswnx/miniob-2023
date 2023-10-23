@@ -28,6 +28,39 @@ class Expression;
  */
 
 /**
+ * @brief 描述聚合运算类型
+ * @ingroup SQLParser
+ */
+enum class AggreType {
+  NONE = 0,
+  MAX,
+  MIN,
+  AVG,
+  CNT,
+  CNTALL,
+  SUM,
+};
+
+inline std::string aggre_to_string(AggreType aggre_type) {
+  switch (aggre_type) {
+    case AggreType::MAX:
+      return "MAX";
+    case AggreType::MIN:
+      return "MIN";
+    case AggreType::AVG:
+      return "AVG";
+    case AggreType::CNT:
+      return "COUNT";
+    case AggreType::CNTALL:
+      return "COUNT(*)";
+    case AggreType::SUM:
+      return "SUM";
+    default:
+      return "NONE";
+  }
+}
+
+/**
  * @brief 描述一个属性
  * @ingroup SQLParser
  * @details 属性，或者说字段(column, field)
@@ -38,6 +71,7 @@ struct RelAttrSqlNode
 {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  AggreType aggre_type;
 };
 
 /**

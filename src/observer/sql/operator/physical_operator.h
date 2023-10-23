@@ -47,6 +47,7 @@ enum class PhysicalOperatorType
   STRING_LIST,
   DELETE,
   INSERT,
+  AGGREGATION,
   UPDATE
 };
 
@@ -67,13 +68,13 @@ public:
   virtual std::string name() const;
   virtual std::string param() const;
 
-  virtual PhysicalOperatorType type() const = 0;
+  virtual PhysicalOperatorType type() const = 0;  // 输出物理算子类型
 
-  virtual RC open(Trx *trx) = 0;
-  virtual RC next() = 0;
-  virtual RC close() = 0;
+  virtual RC open(Trx *trx) = 0;  // 打开算子
+  virtual RC next() = 0;  // 每个算子都需要实现的函数，调用一次函数则执行一次算子
+  virtual RC close() = 0;  // 关闭算子
 
-  virtual Tuple *current_tuple() = 0;
+  virtual Tuple *current_tuple() = 0;  // 当前的 tuple
 
   void add_child(std::unique_ptr<PhysicalOperator> oper)
   {
@@ -86,5 +87,5 @@ public:
   }
 
 protected:
-  std::vector<std::unique_ptr<PhysicalOperator>> children_;
+  std::vector<std::unique_ptr<PhysicalOperator>> children_;  // 子算子，在执行当前算子前需要执行的算子
 };

@@ -9,7 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 //
-// Created by Wangyunlai on 2022/6/5.
+// Created by WangYunlai on 2022/12/08.
 //
 
 #pragma once
@@ -17,54 +17,38 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include <memory>
 
-#include "common/rc.h"
+#include "sql/operator/logical_operator.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
-#include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
 
-class FieldMeta;
-class FilterStmt;
-class Db;
-class Table;
-
 /**
- * @brief 表示select语句
- * @ingroup Statement
+ * @brief project 表示投影运算
+ * @ingroup LogicalOperator
+ * @details 从表中获取数据后，可能需要过滤，投影，连接等等。
  */
-class SelectStmt : public Stmt 
+class AggregationLogicalOperator : public LogicalOperator 
 {
 public:
-  SelectStmt() = default;
-  ~SelectStmt() override;
+  AggregationLogicalOperator(const std::vector<AggreType> &aggre_types);
+  virtual ~AggregationLogicalOperator() = default;
 
-  StmtType type() const override
+  LogicalOperatorType type() const override
   {
-    return StmtType::SELECT;
+    return LogicalOperatorType::AGGREGATION;
   }
 
-public:
-  static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
-
-public:
-  const std::vector<Table *> &tables() const
+  std::vector<std::unique_ptr<Expression>> &expressions()
   {
-    return tables_;
+    return expressions_;
   }
-  const std::vector<Field> &query_fields() const
+  const std::vector<std::unique_ptr<Expression>> &expressions() const
   {
-    return query_fields_;
+    return expressions_;
   }
-  FilterStmt *filter_stmt() const
-  {
-    return filter_stmt_;
-  }
-  bool is_aggre() const { return is_aggre_; }
   const std::vector<AggreType> &aggre_types() const { return aggre_types_; }
 
 private:
-  std::vector<Field> query_fields_;
+  //! 聚合类型
   std::vector<AggreType> aggre_types_;
-  std::vector<Table *> tables_;
-  bool is_aggre_;
-  FilterStmt *filter_stmt_ = nullptr;
 };
