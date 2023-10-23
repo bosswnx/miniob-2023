@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "sql/expr/expression.h"
 #include "storage/record/record.h"
@@ -219,9 +220,9 @@ public:
   }
 
 private:
-  Record *record_ = nullptr;
-  const Table *table_ = nullptr;
-  std::vector<FieldExpr *> speces_;
+  Record *record_ = nullptr;  // tuple 的数据
+  const Table *table_ = nullptr;  // tuple 所在的表
+  std::vector<FieldExpr *> speces_;  // 每个 cell 对应的字段，可以是一个表达式
 };
 
 /**
@@ -286,8 +287,8 @@ public:
   }
 #endif
 private:
-  std::vector<TupleCellSpec *> speces_;
-  Tuple *tuple_ = nullptr;
+  std::vector<TupleCellSpec *> speces_;  // 选择的字段
+  Tuple *tuple_ = nullptr;  // 指向一个其他的 tuple 的派生类
 };
 
 class ExpressionTuple : public Tuple 

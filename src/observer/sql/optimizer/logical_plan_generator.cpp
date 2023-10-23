@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/optimizer/logical_plan_generator.h"
 
+#include "sql/operator/aggre_logical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
@@ -34,6 +35,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/delete_stmt.h"
 #include "sql/stmt/update_stmt.h"
 #include "sql/stmt/explain_stmt.h"
+#include <memory>
 
 using namespace std;
 
@@ -83,6 +85,7 @@ RC LogicalPlanGenerator::create_plan(CalcStmt *calc_stmt, std::unique_ptr<Logica
   return RC::SUCCESS;
 }
 
+// 生成 select 语句的逻辑计划
 RC LogicalPlanGenerator::create_plan(
     SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
@@ -90,6 +93,7 @@ RC LogicalPlanGenerator::create_plan(
 
   const std::vector<Table *> &tables = select_stmt->tables();
   const std::vector<Field> &all_fields = select_stmt->query_fields();
+  const auto is_aggre = select_stmt->is_aggre();
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
@@ -128,7 +132,13 @@ RC LogicalPlanGenerator::create_plan(
     }
   }
 
-  logical_operator.swap(project_oper);
+  if (is_aggre) {
+    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator(select_stmt->aggre_types()));
+    aggregation_oper->add_child(std::move(project_oper));
+    logical_operator.swap(aggregation_oper);
+  } else {
+    logical_operator.swap(project_oper);
+  }
   return RC::SUCCESS;
 }
 
