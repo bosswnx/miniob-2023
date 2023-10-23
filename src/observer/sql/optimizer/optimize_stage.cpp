@@ -34,7 +34,7 @@ using namespace common;
 RC OptimizeStage::handle_request(SQLStageEvent *sql_event)
 {
   unique_ptr<LogicalOperator> logical_operator;
-  RC rc = create_logical_plan(sql_event, logical_operator);
+  RC rc = create_logical_plan(sql_event, logical_operator);  // 生成逻辑计划
   if (rc != RC::SUCCESS) {
     if (rc != RC::UNIMPLENMENT) {
       LOG_WARN("failed to create logical plan. rc=%s", strrc(rc));
@@ -42,20 +42,20 @@ RC OptimizeStage::handle_request(SQLStageEvent *sql_event)
     return rc;
   }
 
-  rc = rewrite(logical_operator);
+  rc = rewrite(logical_operator);  // 优化逻辑计划
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to rewrite plan. rc=%s", strrc(rc));
     return rc;
   }
 
-  rc = optimize(logical_operator);
+  rc = optimize(logical_operator);  // 优化逻辑计划
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to optimize plan. rc=%s", strrc(rc));
     return rc;
   }
 
   unique_ptr<PhysicalOperator> physical_operator;
-  rc = generate_physical_plan(logical_operator, physical_operator);
+  rc = generate_physical_plan(logical_operator, physical_operator);  // 将逻辑计划转换为物理计划
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to generate physical plan. rc=%s", strrc(rc));
     return rc;

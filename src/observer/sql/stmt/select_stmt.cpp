@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -71,15 +72,39 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;
+  std::vector<AggreType> aggre_types;
+  int aggre_stat = 0;  //  用于表示当前是否有聚合函数  01->普通  10->聚合
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
+    aggre_stat |= relation_attr.aggre_type == AggreType::NONE ? 1 : 2;
+    if (aggre_stat == 3) {
+      LOG_WARN("both have aggregation and normal selection.");
+      return RC::INVALID_ARGUMENT;
+    }
 
     // 如果表名为空，且属性名为*，则将所有表的所有属性加入到query_fields中
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
-      for (Table *table : tables) {
-        // wildcard: 通配符
+      if (relation_attr.aggre_type == AggreType::NONE) {
+        for (Table *table : tables) {
+          // wildcard: 通配符
         wildcard_fields(table, query_fields);
+        }
+      } else if (relation_attr.aggre_type == AggreType::CNT) {
+        auto *table = tables[0];
+        auto *field_meta = table->table_meta().field(0);
+        query_fields.push_back(Field(table, field_meta));
+        aggre_types.push_back(AggreType::CNT);
+      } else {
+        auto table_meta = tables[0]->table_meta();
+        if (tables.size() > 1 || table_meta.field_num() > 1) {
+          LOG_WARN("too many fields in aggregation function.");
+          return RC::INVALID_ARGUMENT;
+        }
+        auto *table = tables[0];
+        auto *field_meta = table->table_meta().field(0);
+        query_fields.push_back(Field(table, field_meta));
+        aggre_types.push_back(relation_attr.aggre_type);
       }
 
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
@@ -92,8 +117,25 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           LOG_WARN("invalid field name while table is *. attr=%s", field_name);
           return RC::SCHEMA_FIELD_MISSING;
         }
-        for (Table *table : tables) {
-          wildcard_fields(table, query_fields);
+        if (relation_attr.aggre_type == AggreType::NONE) {
+          for (Table *table : tables) {
+            wildcard_fields(table, query_fields);
+          }
+        } else if (relation_attr.aggre_type == AggreType::CNT) {
+          auto *table = tables[0];
+          auto *field_meta = table->table_meta().field(0);
+          query_fields.push_back(Field(table, field_meta));
+          aggre_types.push_back(AggreType::CNT);
+        } else {
+          auto table_meta = tables[0]->table_meta();
+          if (tables.size() > 1 || table_meta.field_num() > 1) {
+            LOG_WARN("too many fields in aggregation function.");
+            return RC::INVALID_ARGUMENT;
+          }
+          auto *table = tables[0];
+          auto *field_meta = table->table_meta().field(0);
+          query_fields.push_back(Field(table, field_meta));
+          aggre_types.push_back(relation_attr.aggre_type);
         }
       } else {
         auto iter = table_map.find(table_name);
@@ -104,7 +146,22 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
         Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, query_fields);
+          if (relation_attr.aggre_type == AggreType::NONE) {
+            wildcard_fields(table, query_fields);
+          } else if (relation_attr.aggre_type == AggreType::CNT) {
+            auto *field_meta = table->table_meta().field(0);
+            query_fields.push_back(Field(table, field_meta));
+            aggre_types.push_back(AggreType::CNT);
+          } else {
+            auto table_meta = table->table_meta();
+            if (table_meta.field_num() > 1) {
+              LOG_WARN("too many fields in aggregation function.");
+              return RC::INVALID_ARGUMENT;
+            }
+            auto *field_meta = table->table_meta().field(0);
+            query_fields.push_back(Field(table, field_meta));
+            aggre_types.push_back(relation_attr.aggre_type);
+          }
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -113,6 +170,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           }
 
           query_fields.push_back(Field(table, field_meta));
+          if (relation_attr.aggre_type != AggreType::NONE) {
+            aggre_types.push_back(relation_attr.aggre_type);
+          }
         }
       }
     } else {
@@ -129,6 +189,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       }
 
       query_fields.push_back(Field(table, field_meta));
+      if (relation_attr.aggre_type != AggreType::NONE) {
+        aggre_types.push_back(relation_attr.aggre_type);
+      }
     }
   }
 
@@ -155,8 +218,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
+  select_stmt->is_aggre_ = aggre_stat == 2;
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
+  select_stmt->aggre_types_.swap(aggre_types);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
   return RC::SUCCESS;

@@ -67,6 +67,6 @@ public:
   const char *get_data(const Record &record);
 
 private:
-  const Table *table_ = nullptr; // 这是个数组
-  const FieldMeta *field_ = nullptr; // 这是个数组
+  const Table *table_ = nullptr;  // 字段所在的表
+  const FieldMeta *field_ = nullptr;  // 字段的元数据
 };

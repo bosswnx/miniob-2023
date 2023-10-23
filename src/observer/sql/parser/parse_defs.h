@@ -40,6 +40,23 @@ enum class AggreType {
   SUM,
 };
 
+inline std::string aggre_to_string(AggreType aggre_type) {
+  switch (aggre_type) {
+    case AggreType::MAX:
+      return "MAX";
+    case AggreType::MIN:
+      return "MIN";
+    case AggreType::AVG:
+      return "AVG";
+    case AggreType::CNT:
+      return "COUNT";
+    case AggreType::SUM:
+      return "SUM";
+    default:
+      return "NONE";
+  }
+}
+
 /**
  * @brief 描述一个属性
  * @ingroup SQLParser

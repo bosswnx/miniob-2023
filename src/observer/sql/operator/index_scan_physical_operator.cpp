@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/operator/index_scan_physical_operator.h"
+#include "sql/operator/join_physical_operator.h"
 #include "storage/index/index.h"
 #include "storage/trx/trx.h"
 
