@@ -262,6 +262,8 @@ bool Value::like(const Value &tmplt) const
 
     ++j;
     if (!is_wildcard) ++i;
+
+    if (i >= tmplt_len && j < s_len) return false;
   }
 
   if (is_wildcard && i < tmplt_len && tmplt_s[i] != '%') {
