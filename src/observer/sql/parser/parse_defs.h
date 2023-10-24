@@ -112,6 +112,12 @@ struct ConditionSqlNode
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE。 当是 LIKE 时，这里肯定有值（yacc_sql.y 586L）
 };
 
+struct JoinSqlNode
+{
+  std::string relation_name;  ///< Relation to join with
+  std::vector<ConditionSqlNode> conditions;
+};
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
@@ -128,7 +134,9 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<JoinSqlNode>        joins;         ///< join clause
 };
+
 
 /**
  * @brief 算术表达式计算的语法树

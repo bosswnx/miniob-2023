@@ -123,6 +123,7 @@ union YYSTYPE
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
+  ConditionSqlNode *                join_condition;
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
@@ -134,6 +135,7 @@ union YYSTYPE
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<JoinSqlNode> *        join_list;
   char *                            string;
   int                               number;
   float                             floats;

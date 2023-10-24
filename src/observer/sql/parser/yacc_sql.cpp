@@ -1774,7 +1774,7 @@ yyreduce:
   case 25: /* sync_stmt: SYNC  */
 #line 226 "yacc_sql.y"
          {
-      (yyval.sql_node) = new ParsedSqlNode(SCF_SYNC);
+      (yyval.sql_node) = new ParsedSqlNode(SCF_HELP);
     }
 #line 1780 "yacc_sql.cpp"
     break;
@@ -1790,7 +1790,7 @@ yyreduce:
   case 27: /* commit_stmt: TRX_COMMIT  */
 #line 238 "yacc_sql.y"
                {
-      (yyval.sql_node) = new ParsedSqlNode(SCF_COMMIT);
+      (yyval.sql_node) = new ParsedSqlNode(SCF_BEGIN);
     }
 #line 1796 "yacc_sql.cpp"
     break;
@@ -1801,6 +1801,14 @@ yyreduce:
       (yyval.sql_node) = new ParsedSqlNode(SCF_ROLLBACK);
     }
 #line 1804 "yacc_sql.cpp"
+    break;
+
+  case 28: /* rollback_stmt: TRX_ROLLBACK  */
+#line 242 "yacc_sql.y"
+                  {
+      (yyval.sql_node) = new ParsedSqlNode(SCF_ROLLBACK);
+    }
+#line 1778 "yacc_sql.cpp"
     break;
 
   case 29: /* drop_table_stmt: DROP TABLE ID  */
@@ -1819,6 +1827,14 @@ yyreduce:
       (yyval.sql_node) = new ParsedSqlNode(SCF_SHOW_TABLES);
     }
 #line 1822 "yacc_sql.cpp"
+    break;
+
+  case 30: /* show_tables_stmt: SHOW TABLES  */
+#line 255 "yacc_sql.y"
+                {
+      (yyval.sql_node) = new ParsedSqlNode(SCF_SHOW_TABLES);
+    }
+#line 1796 "yacc_sql.cpp"
     break;
 
   case 31: /* desc_table_stmt: DESC ID  */
@@ -1884,6 +1900,14 @@ yyreduce:
       (yyval.attr_infos) = nullptr;
     }
 #line 1887 "yacc_sql.cpp"
+    break;
+
+  case 35: /* attr_def_list: %empty  */
+#line 312 "yacc_sql.y"
+    {
+      (yyval.attr_infos) = nullptr;
+    }
+#line 1861 "yacc_sql.cpp"
     break;
 
   case 36: /* attr_def_list: COMMA attr_def attr_def_list  */
@@ -1978,6 +2002,14 @@ yyreduce:
 #line 1979 "yacc_sql.cpp"
     break;
 
+  case 45: /* value_list: %empty  */
+#line 371 "yacc_sql.y"
+    {
+      (yyval.value_list) = nullptr;
+    }
+#line 1953 "yacc_sql.cpp"
+    break;
+
   case 46: /* value_list: COMMA value value_list  */
 #line 376 "yacc_sql.y"
                               { 
@@ -2066,22 +2098,37 @@ yyreduce:
 #line 437 "yacc_sql.y"
     {
       (yyval.sql_node) = new ParsedSqlNode(SCF_SELECT);
-      if ((yyvsp[-4].rel_attr_list) != nullptr) {
-        (yyval.sql_node)->selection.attributes.swap(*(yyvsp[-4].rel_attr_list));
-        delete (yyvsp[-4].rel_attr_list);
+      if ((yyvsp[-5].rel_attr_list) != nullptr) {
+        (yyval.sql_node)->selection.attributes.swap(*(yyvsp[-5].rel_attr_list));
+        delete (yyvsp[-5].rel_attr_list);
       }
-      if ((yyvsp[-1].relation_list) != nullptr) {
-        (yyval.sql_node)->selection.relations.swap(*(yyvsp[-1].relation_list));
-        delete (yyvsp[-1].relation_list);
+      if ((yyvsp[-2].relation_list) != nullptr) {
+        (yyval.sql_node)->selection.relations.swap(*(yyvsp[-2].relation_list));
+        delete (yyvsp[-2].relation_list);
       }
-      (yyval.sql_node)->selection.relations.push_back((yyvsp[-2].string));
+      (yyval.sql_node)->selection.relations.push_back((yyvsp[-3].string));
       std::reverse((yyval.sql_node)->selection.relations.begin(), (yyval.sql_node)->selection.relations.end());
+      if ((yyvsp[-1].join_list) != nullptr) {
+        /* $$->selection.joins.swap(*$6); */
+        /* 通过遍历 将$6中的数据取出来*/
+        /* 先 reverse 一下 */
+        std::reverse((yyvsp[-1].join_list)->begin(), (yyvsp[-1].join_list)->end());
+        for (auto &join : *(yyvsp[-1].join_list)) {
+          (yyval.sql_node)->selection.relations.push_back(join.relation_name);
+          for (auto &condition : join.conditions) {
+            (yyval.sql_node)->selection.conditions.emplace_back(condition);
+          }
+        }
+      }
 
       if ((yyvsp[0].condition_list) != nullptr) {
-        (yyval.sql_node)->selection.conditions.swap(*(yyvsp[0].condition_list));
-        delete (yyvsp[0].condition_list);
+        /*$$->selection.conditions.swap(*$7);*/
+        for (auto &condition : *(yyvsp[0].condition_list)) {
+          (yyval.sql_node)->selection.conditions.emplace_back(condition);
+        }
+        /* delete $7; */
       }
-      free((yyvsp[-2].string));
+      free((yyvsp[-3].string));
     }
 #line 2087 "yacc_sql.cpp"
     break;
