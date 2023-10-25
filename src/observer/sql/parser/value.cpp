@@ -254,12 +254,13 @@ int Value::compare(const Value &other) const
 float Value::db_str_to_float(const char *str) const {
     float this_value = 0;
     bool entering_dot = false;
+    int dot_index = 1;
     for (int i = 0; i < strlen(str); i++) {
       if (str[i] >= 48 && str[i] <= 57) {
         if (!entering_dot) {
           this_value = this_value * 10 + str[i] - 48;
         } else {
-          this_value += (str[i] - 48) * pow(0.1, i - this->str_value_.length());
+          this_value += (str[i] - 48) * pow(0.1, dot_index++);
         }
       } else {
         if (str[i] == '.' && !entering_dot) {
