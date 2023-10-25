@@ -723,6 +723,8 @@ join_list:
       join1.relation_name = $2;
       /*join1.conditions.swap(*$4); */
       /*join1.conditions.emplace_back(*$4); */
+      // reverse
+      std::reverse($4->begin(), $4->end());
       for (auto &condition : *$4) {
         join1.conditions.emplace_back(condition);
       }

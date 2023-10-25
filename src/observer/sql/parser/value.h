@@ -149,6 +149,11 @@ public:
   */
   bool like(const char *s, const char *tmplt_s) const;
 
+  /*
+    将字符串转换为整数（MySQL字符串和数字比较的坑：比较时会把字符串类型转成整数类型，从首字母开始，遇到非数字类型后终止。）
+  */
+  float db_str_to_float(const char *str) const;
+
   const char *data() const;
   int length() const
   {
