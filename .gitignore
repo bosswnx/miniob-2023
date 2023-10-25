@@ -7,6 +7,10 @@
 !.vscode/tasks.json
 !.vscode/launch.json
 ./docs/doxy/
+src/observer/sql/parser/lex_sql.cpp
+src/observer/sql/parser/lex_sql.h
+src/observer/sql/parser/yacc_sql.cpp
+src/observer/sql/parser/yacc_sql.hpp
 build/*
 build_*
 cmake-build-*/*

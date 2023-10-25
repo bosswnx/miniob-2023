@@ -1,0 +1,39 @@
+name: Generate yacc and flex files
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  Generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison
+      - name: Generate yacc and flex files
+        run: cd ${{ github.workspace }}/src/observer/sql/parser && ./gen_parser.sh
+      - name: Modify .gitignore
+        run: |
+          echo "!src/observer/sql/parser/lex_sql.cpp" >> .gitignore
+          echo "!src/observer/sql/parser/lex_sql.h" >> .gitignore
+          echo "!src/observer/sql/parser/yacc_sql.cpp" >> .gitignore
+          echo "!src/observer/sql/parser/yacc_sql.hpp" >> .gitignore
+      - name: Setup git
+        run: |
+          git config --local user.name "Github Actions"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -a -m 'Automatically generate yacc and flex files'
+      - name: Push code to branch test
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: test
+          force: true
+
