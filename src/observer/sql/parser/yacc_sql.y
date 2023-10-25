@@ -84,6 +84,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INTO
         VALUES
         FROM
+        INNER_JOIN
         WHERE
         AND
         SET
@@ -110,6 +111,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %union {
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
+  ConditionSqlNode *                join_condition;
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
@@ -121,6 +123,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<JoinSqlNode> *        join_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -136,6 +139,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 %type <condition>           condition
+// %type <join_condition>      join_condition
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
@@ -150,6 +154,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       aggre_attr
 %type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
+%type <join_list>           join_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -432,8 +437,8 @@ update_stmt:      /*  update 语句的语法解析树*/
       free($4);
     }
     ;
-select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
+    SELECT select_attr FROM ID rel_list join_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -446,10 +451,25 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       $$->selection.relations.push_back($4);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
-        delete $6;
+        /* $$->selection.joins.swap(*$6); */
+        /* 通过遍历 将$6中的数据取出来*/
+        /* 先 reverse 一下 */
+        std::reverse($6->begin(), $6->end());
+        for (auto &join : *$6) {
+          $$->selection.relations.push_back(join.relation_name);
+          for (auto &condition : join.conditions) {
+            $$->selection.conditions.emplace_back(condition);
+          }
+        }
+      }
+
+      if ($7 != nullptr) {
+        /*$$->selection.conditions.swap(*$7);*/
+        for (auto &condition : *$7) {
+          $$->selection.conditions.emplace_back(condition);
+        }
+        /* delete $7; */
       }
       free($4);
     }
@@ -678,6 +698,43 @@ rel_list:
       free($2);
     }
     ;
+
+/*
+struct JoinSqlNode
+{
+  std::string relation_name;  ///< Relation to join with
+  std::vector<ConditionSqlNode> conditions;
+};
+*/
+
+join_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | INNER_JOIN ID ON condition_list join_list {
+      if ($5 != nullptr) {
+        $$ = $5;
+      } else {
+        $$ = new std::vector<JoinSqlNode>;
+      }
+
+      JoinSqlNode join1;
+      join1.relation_name = $2;
+      /*join1.conditions.swap(*$4); */
+      /*join1.conditions.emplace_back(*$4); */
+      // reverse
+      std::reverse($4->begin(), $4->end());
+      for (auto &condition : *$4) {
+        join1.conditions.emplace_back(condition);
+      }
+      $$->emplace_back(join1);
+      /*delete $4;
+      free($2);*/
+    }
+    ;
+
+
 where:
     /* empty */
     {
@@ -703,6 +760,26 @@ condition_list:
       delete $1;
     }
     ;
+
+/*
+We no longer need this again.
+直接使用 condition_list
+join_condition:
+    rel_attr comp_op rel_attr
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->right_is_attr = 1;
+      $$->right_attr = *$3;
+      $$->comp = $2;
+
+      delete $1;
+      delete $3;
+    }
+    ;
+*/
+
 condition:
     rel_attr comp_op value
     {

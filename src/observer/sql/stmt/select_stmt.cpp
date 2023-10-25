@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include <cstddef>
 
 SelectStmt::~SelectStmt()
 {
@@ -70,10 +71,34 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
-
     tables.push_back(table);
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
+
+  // 还要将 joins 的表加入到tables和table_map中
+  // 优化：这个地方有潜在的优化空间，可以在解析语法树的时候就直接把join的表加入到select_sql.relations内
+  // 已优化↑
+  // for (size_t i = 0; i< select_sql.joins.size(); ++i) {
+  //   const char *table_name = select_sql.joins[i].relation_name.c_str();
+  //   if (nullptr == table_name) {
+  //     LOG_WARN("invalid argument. relation name is null. index=%d", i);
+  //     return RC::INVALID_ARGUMENT;
+  //   }
+
+  //   Table *table = db->find_table(table_name);
+  //   if (nullptr == table) {
+  //     LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+  //     return RC::SCHEMA_TABLE_NOT_EXIST;
+  //   }
+  //   tables.push_back(table);
+  //   table_map.insert(std::pair<std::string, Table *>(table_name, table));
+  // }
+  // 还要将 joins 的 conditions 加入到 select_sql.conditions 中
+  // for (size_t i = 0; i< select_sql.joins.size(); ++i) {
+  //   for (size_t j = 0; j < select_sql.joins[i].conditions.size(); ++j) {
+  //     select_sql.conditions.push_back(select_sql.joins[i].conditions[j]);
+  //   }
+  // }
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;

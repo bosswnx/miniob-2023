@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by WangYunlai on 2023/06/28.
 //
 
+#include <math.h>
 #include <sstream>
 #include "sql/parser/value.h"
 #include "common/log/log.h"
@@ -222,9 +223,52 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if ((this->attr_type_ == CHARS && other.attr_type_ == FLOATS) || (this->attr_type_ == CHARS && other.attr_type_ == INTS)) {
+    float this_value = db_str_to_float(this->str_value_.c_str());
+    float other_value;
+    if (other.attr_type_ == INTS) {
+      other_value = other.num_value_.int_value_;
+    } else {
+      other_value = other.num_value_.float_value_;
+    }
+    return common::compare_float((void *)&this_value, (void *)&other.num_value_.float_value_);
+  } else if ((this->attr_type_ == FLOATS && other.attr_type_ == CHARS) || (this->attr_type_ == INTS && other.attr_type_ == CHARS)) {
+    float other_value = db_str_to_float(other.str_value_.c_str());
+    float this_value;
+    if (this->attr_type_ == INTS) {
+      this_value = this->num_value_.int_value_;
+    } else {
+      this_value = this->num_value_.float_value_;
+    }
+    return common::compare_float((void *)&this_value, (void *)&other_value);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == DATES) {
+    int32_t this_date = get_date().get_date_value();
+    int32_t other_date = other.get_date().get_date_value();
+    return common::compare_int((void *)&this_date, (void *)&other_date);
   }
+  // todo: 还要实现date等其他类型的比较
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
+}
+
+float Value::db_str_to_float(const char *str) const {
+    float this_value = 0;
+    bool entering_dot = false;
+    int dot_index = 1;
+    for (int i = 0; i < strlen(str); i++) {
+      if (str[i] >= 48 && str[i] <= 57) {
+        if (!entering_dot) {
+          this_value = this_value * 10 + str[i] - 48;
+        } else {
+          this_value += (str[i] - 48) * pow(0.1, dot_index++);
+        }
+      } else {
+        if (str[i] == '.' && !entering_dot) {
+          entering_dot = true;
+        } else break;
+      }
+    }
+    return this_value;
 }
 
 // like 语句比较
