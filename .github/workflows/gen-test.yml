@@ -2,9 +2,9 @@ name: Generate yacc and flex files
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ '*' ]
 
 jobs:
   Generate:
