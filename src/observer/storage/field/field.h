@@ -21,7 +21,7 @@ See the Mulan PSL v2 for more details. */
  * @brief 字段
  * 
  */
-class Field 
+class Field // 存放有字段的数据
 {
 public:
   Field() = default;

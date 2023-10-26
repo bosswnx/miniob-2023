@@ -21,7 +21,14 @@ See the Mulan PSL v2 for more details. */
 #include <sstream>
 #include <functional>
 #include <memory>
+#include <sys/_types/_int32_t.h>
+#include <vector>
 
+#include "common/lang/lower_bound.h"
+#include "common/mm/mem_pool.h"
+#include "common/types.h"
+#include "sql/parser/value.h"
+#include "storage/buffer/page.h"
 #include "storage/record/record_manager.h"
 #include "storage/buffer/disk_buffer_pool.h"
 #include "storage/trx/latch_memo.h"
@@ -95,30 +102,51 @@ private:
 class KeyComparator 
 {
 public:
-  void init(AttrType type, int length)
-  {
-    attr_comparator_.init(type, length);
+  void init(AttrType type, int length) {
+    attr_comparators_.resize(1);
+    attr_comparators_[0].init(type, length);
+  }
+  void init(const vector<AttrType> &types, const vector<int> &lengths) {
+    attr_comparators_.resize(types.size());
+    for (int i = 0; i < types.size(); i++) {
+      attr_comparators_[i].init(types[i], lengths[i]);
+    }
   }
 
-  const AttrComparator &attr_comparator() const
+  const vector<AttrComparator> &attr_comparators() const
   {
-    return attr_comparator_;
+    return attr_comparators_;
   }
 
-  int operator()(const char *v1, const char *v2) const
+  int operator()(const char *v1, const char *v2) const {
+    return (*this)(v1, v2, attr_comparators_.size());
+  }
+
+  int operator()(const char *v1, const char *v2, int num) const
   {
-    int result = attr_comparator_(v1, v2);
+    int result = 0;
+    int offset = 0;
+    for (int i = 0; i < attr_comparators_.size(); i++) {
+      if (i < num) {
+        result = attr_comparators_[i](v1, v2);
+        if (result != 0) {
+          return result;
+        }
+      }
+      v1 += attr_comparators_[i].attr_length();
+      v2 += attr_comparators_[i].attr_length();
+    }
     if (result != 0) {
       return result;
     }
 
-    const RID *rid1 = (const RID *)(v1 + attr_comparator_.attr_length());
-    const RID *rid2 = (const RID *)(v2 + attr_comparator_.attr_length());
+    const RID *rid1 = (const RID *)(v1 + offset);
+    const RID *rid2 = (const RID *)(v2 + offset);
     return RID::compare(rid1, rid2);
   }
 
 private:
-  AttrComparator attr_comparator_;
+  vector<AttrComparator> attr_comparators_;
 };
 
 /**
@@ -177,29 +205,40 @@ private:
 class KeyPrinter 
 {
 public:
-  void init(AttrType type, int length)
+  void init(AttrType type, int length) {
+    attr_printers_.resize(1);
+    attr_printers_[0].init(type, length);
+  }
+  void init(const vector<AttrType> &types, const vector<int> &lengths)
   {
-    attr_printer_.init(type, length);
+    attr_printers_.resize(types.size());
+    for (int i = 0; i < types.size(); i++) {
+      attr_printers_[i].init(types[i], lengths[i]);
+    }
   }
 
-  const AttrPrinter &attr_printer() const
+  const vector<AttrPrinter> &attr_printer() const
   {
-    return attr_printer_;
+    return attr_printers_;
   }
 
   std::string operator()(const char *v) const
   {
-    std::stringstream ss;
-    ss << "{key:" << attr_printer_(v) << ",";
+    // TODO
+    // std::stringstream ss;
+    // ss << "{key:" << attr_printer_(v) << ",";
 
-    const RID *rid = (const RID *)(v + attr_printer_.attr_length());
-    ss << "rid:{" << rid->to_string() << "}}";
-    return ss.str();
+    // const RID *rid = (const RID *)(v + attr_printer_.attr_length());
+    // ss << "rid:{" << rid->to_string() << "}}";
+    // return ss.str();
+    return "UNIMPLEMENT";
   }
 
 private:
-  AttrPrinter attr_printer_;
+  vector<AttrPrinter> attr_printers_;
 };
+
+const int MAX_KEY_NUM = (BP_PAGE_DATA_SIZE - sizeof(PageNum) - 4 * sizeof(int32_t)) / (sizeof(AttrType) + sizeof(int32_t));
 
 /**
  * @brief the meta information of bplus tree
@@ -217,20 +256,22 @@ struct IndexFileHeader
   PageNum root_page;          ///< 根节点在磁盘中的页号
   int32_t internal_max_size;  ///< 内部节点最大的键值对数
   int32_t leaf_max_size;      ///< 叶子节点最大的键值对数
-  int32_t attr_length;        ///< 键值的长度
-  int32_t key_length;         ///< attr length + sizeof(RID)
-  AttrType attr_type;         ///< 键值的类型
+  int32_t keys_length;         ///< attr length + sizeof(RID)
+  int keys_num;                ///< 键值的个数
+  AttrType attr_types[MAX_KEY_NUM];
+  int32_t attr_lengths[MAX_KEY_NUM];
 
   const std::string to_string()
   {
     std::stringstream ss;
 
-    ss << "attr_length:" << attr_length << ","
-       << "key_length:" << key_length << ","
-       << "attr_type:" << attr_type << ","
-       << "root_page:" << root_page << ","
-       << "internal_max_size:" << internal_max_size << ","
-       << "leaf_max_size:" << leaf_max_size << ";";
+    // TODO: fix this 
+    // ss << "attr_length:" << attr_length << ","
+    //    << "key_length:" << key_length << ","
+    //    << "attr_type:" << attr_type << ","
+    //    << "root_page:" << root_page << ","
+    //    << "internal_max_size:" << internal_max_size << ","
+    //    << "leaf_max_size:" << leaf_max_size << ";";
 
     return ss.str();
   }
@@ -313,7 +354,8 @@ public:
   void init_empty(bool leaf);
 
   bool is_leaf() const;
-  int  key_size() const;
+  int  keys_size() const;
+  int  keys_num() const;
   int  value_size() const;
   int  item_size() const;
 
@@ -351,18 +393,18 @@ public:
   void set_next_page(PageNum page_num);
   PageNum next_page() const;
 
-  char *key_at(int index);
+  char *keys_at(int index);
   char *value_at(int index);
 
   /**
    * 查找指定key的插入位置(注意不是key本身)
    * 如果key已经存在，会设置found的值。
    */
-  int lookup(const KeyComparator &comparator, const char *key, bool *found = nullptr) const;
+  int lookup(const KeyComparator &comparator, const char *keys, int keys_num, bool *found = nullptr) const;
 
-  void insert(int index, const char *key, const char *value);
+  void insert(int index, const char *keys, const char *value);
   void remove(int index);
-  int  remove(const char *key, const KeyComparator &comparator);
+  int  remove(const char *keys, const KeyComparator &comparator);
   RC move_half_to(LeafIndexNodeHandler &other, DiskBufferPool *bp);
   RC move_first_to_end(LeafIndexNodeHandler &other, DiskBufferPool *disk_buffer_pool);
   RC move_last_to_front(LeafIndexNodeHandler &other, DiskBufferPool *bp);
@@ -377,7 +419,7 @@ public:
 
 private:
   char *__item_at(int index) const;
-  char *__key_at(int index) const;
+  char *__keys_at(int index) const;
   char *__value_at(int index) const;
 
   void append(const char *item);
@@ -398,18 +440,18 @@ public:
   virtual ~InternalIndexNodeHandler() = default;
 
   void init_empty();
-  void create_new_root(PageNum first_page_num, const char *key, PageNum page_num);
+  void create_new_root(PageNum first_page_num, const char *keys, PageNum page_num);
 
-  void insert(const char *key, PageNum page_num, const KeyComparator &comparator);
+  void insert(const char *keys, PageNum page_num, const KeyComparator &comparator);
   RC move_half_to(LeafIndexNodeHandler &other, DiskBufferPool *bp);
-  char *key_at(int index);
+  char *keys_at(int index);
   PageNum value_at(int index);
 
   /**
    * 返回指定子节点在当前节点中的索引
    */
   int value_index(PageNum page_num);
-  void set_key_at(int index, const char *key);
+  void set_keys_at(int index, const char *keys);
   void remove(int index);
 
   /**
@@ -421,7 +463,8 @@ public:
    * @param[out] insert_position 如果是有效指针，将会返回可以插入指定键值的位置
    */
   int lookup(const KeyComparator &comparator, 
-             const char *key, 
+             const char *keys, 
+             int keys_num,
              bool *found = nullptr, 
              int *insert_position = nullptr) const;
 
@@ -441,7 +484,7 @@ private:
 
 private:
   char *__item_at(int index) const;
-  char *__key_at(int index) const;
+  char *__keys_at(int index) const;
   char *__value_at(int index) const;
 
   int value_size() const;
@@ -467,6 +510,11 @@ public:
             int attr_length, 
             int internal_max_size = -1, 
             int leaf_max_size = -1);
+  RC create(const char *file_name, 
+            const std::vector<AttrType> &attr_types,
+            const std::vector<int> &attr_lengths, 
+            int internal_max_size = -1, 
+            int leaf_max_size = -1);
 
   /**
    * 打开名为fileName的索引文件。
@@ -482,27 +530,30 @@ public:
 
   /**
    * 此函数向IndexHandle对应的索引中插入一个索引项。
-   * 参数user_key指向要插入的属性值，参数rid标识该索引项对应的元组，
-   * 即向索引中插入一个值为（user_key，rid）的键值对
-   * @note 这里假设user_key的内存大小与attr_length 一致
+   * 参数user_keys指向要插入的属性值，参数rid标识该索引项对应的元组，
+   * 即向索引中插入一个值为（user_keys，rid）的键值对
+   * @note 这里假设user_keys的内存大小与attr_length 一致
    */
   RC insert_entry(const char *user_key, const RID *rid);
+  RC insert_entry(const vector<const char *> &user_keys, const RID *rid);
 
   /**
    * 从IndexHandle句柄对应的索引中删除一个值为（*pData，rid）的索引项
    * @return RECORD_INVALID_KEY 指定值不存在
-   * @note 这里假设user_key的内存大小与attr_length 一致
+   * @note 这里假设user_keys的内存大小与attr_length 一致
    */
   RC delete_entry(const char *user_key, const RID *rid);
+  RC delete_entry(const vector<const char *> &user_keys, const RID *rid);
 
   bool is_empty() const;
 
   /**
    * 获取指定值的record
-   * @param key_len user_key的长度
+   * @param key_len user_keys的长度
    * @param rid  返回值，记录记录所在的页面号和slot
    */
   RC get_entry(const char *user_key, int key_len, std::list<RID> &rids);
+  RC get_entry(const vector<const char *> &user_keys, const vector<int> &key_lens, std::list<RID> &rids);
 
   RC sync();
 
@@ -531,7 +582,7 @@ private:
   bool validate_node_recursive(LatchMemo &latch_memo, Frame *frame);
 
 protected:
-  RC find_leaf(LatchMemo &latch_memo, BplusTreeOperationType op, const char *key, Frame *&frame);
+  RC find_leaf(LatchMemo &latch_memo, BplusTreeOperationType op, const char *keys, int keys_num, Frame *&frame);
   RC left_most_page(LatchMemo &latch_memo, Frame *&frame);
   RC find_leaf_internal(LatchMemo &latch_memo, BplusTreeOperationType op, 
                         const std::function<PageNum(InternalIndexNodeHandler &)> &child_page_getter, 
@@ -542,7 +593,7 @@ protected:
   RC insert_into_parent(LatchMemo &latch_memo, PageNum parent_page, Frame *left_frame, const char *pkey, 
                         Frame &right_frame);
 
-  RC delete_entry_internal(LatchMemo &latch_memo, Frame *leaf_frame, const char *key);
+  RC delete_entry_internal(LatchMemo &latch_memo, Frame *leaf_frame, const char *keys);
 
   template <typename IndexNodeHandlerType>
   RC split(LatchMemo &latch_memo, Frame *frame, Frame *&new_frame);
@@ -553,9 +604,9 @@ protected:
   template <typename IndexNodeHandlerType>
   RC redistribute(Frame *neighbor_frame, Frame *frame, Frame *parent_frame, int index);
 
-  RC insert_entry_into_parent(LatchMemo &latch_memo, Frame *frame, Frame *new_frame, const char *key);
+  RC insert_entry_into_parent(LatchMemo &latch_memo, Frame *frame, Frame *new_frame, const char *keys);
   RC insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *pkey, const RID *rid);
-  RC create_new_tree(const char *key, const RID *rid);
+  RC create_new_tree(const char *keys, const RID *rid);
 
   void update_root_page_num(PageNum root_page_num);
   void update_root_page_num_locked(PageNum root_page_num);
@@ -563,8 +614,9 @@ protected:
   RC adjust_root(LatchMemo &latch_memo, Frame *root_frame);
 
 private:
-  common::MemPoolItem::unique_ptr make_key(const char *user_key, const RID &rid);
-  void free_key(char *key);
+  common::MemPoolItem::unique_ptr make_keys(const char *user_key, const RID &rid);
+  common::MemPoolItem::unique_ptr make_keys(const vector<const char *> &user_keys, const RID &rid);
+  void free_keys(char *keys);
 
 protected:
   DiskBufferPool *disk_buffer_pool_ = nullptr;
@@ -597,15 +649,17 @@ public:
 
   /**
    * @brief 扫描指定范围的数据
-   * @param left_user_key 扫描范围的左边界，如果是null，则没有左边界
-   * @param left_len left_user_key 的内存大小(只有在变长字段中才会关注)
+   * @param left_user_keys 扫描范围的左边界，如果是null，则没有左边界
+   * @param left_len left_user_keys 的内存大小(只有在变长字段中才会关注)
    * @param left_inclusive 左边界的值是否包含在内
-   * @param right_user_key 扫描范围的右边界。如果是null，则没有右边界
-   * @param right_len right_user_key 的内存大小(只有在变长字段中才会关注)
+   * @param right_user_keys 扫描范围的右边界。如果是null，则没有右边界
+   * @param right_len right_user_keys 的内存大小(只有在变长字段中才会关注)
    * @param right_inclusive 右边界的值是否包含在内
    */
   RC open(const char *left_user_key, int left_len, bool left_inclusive, 
           const char *right_user_key, int right_len, bool right_inclusive);
+  RC open(const vector<const char *> &left_user_keys, const vector<int> &left_lens, bool left_inclusive, 
+          const vector<const char *> &right_user_keys, const vector<int> &right_len, bool right_inclusive);
 
   RC next_entry(RID &rid);
 
@@ -613,9 +667,9 @@ public:
 
 private:
   /**
-   * 如果key的类型是CHARS, 扩展或缩减user_key的大小刚好是schema中定义的大小
+   * 如果key的类型是CHARS, 扩展或缩减user_keys的大小刚好是schema中定义的大小
    */
-  RC fix_user_key(const char *user_key, int key_len, bool want_greater, char **fixed_key, bool *should_inclusive);
+  RC fix_user_key(const char *user_key, int key_len, int attr_len, bool want_greater, char **fixed_key, bool *should_inclusive);
 
   void fetch_item(RID &rid);
   bool touch_end();

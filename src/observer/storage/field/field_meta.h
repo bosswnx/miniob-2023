@@ -53,7 +53,7 @@ public:
 protected:
   std::string name_;
   AttrType attr_type_;
-  int attr_offset_;
+  int attr_offset_;  // 字段在记录中的偏移量
   int attr_len_;
-  bool visible_;
+  bool visible_;  // 是否可见
 };

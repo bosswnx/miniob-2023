@@ -27,12 +27,12 @@ public:
   BplusTreeIndex() = default;
   virtual ~BplusTreeIndex() noexcept;
 
-  RC create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
-  RC open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta);
+  RC create(const char *file_name, const IndexMeta &index_meta, const vector<FieldMeta> &field_metas);
+  RC open(const char *file_name, const IndexMeta &index_meta, const vector<FieldMeta> &field_metas);
   RC close();
 
-  RC insert_entry(const char *record, const RID *rid) override;
-  RC delete_entry(const char *record, const RID *rid) override;
+  RC insert_entry(const char *record, const RID *rid) override;  // 插入一条数据
+  RC delete_entry(const char *record, const RID *rid) override;  // 删除一条数据
   // RC update_entry(const RID *rid, const char *old_record_data) override;
 
   /**
@@ -40,6 +40,8 @@ public:
    */
   IndexScanner *create_scanner(const char *left_key, int left_len, bool left_inclusive, const char *right_key,
       int right_len, bool right_inclusive) override;
+  IndexScanner *create_scanner(const vector<const char *> &left_keys, const vector<int> &left_lens, bool left_inclusive, const vector<const char *> &right_keys,
+      const vector<int> &right_len, bool right_inclusive);
 
   RC sync() override;
 
@@ -61,7 +63,7 @@ public:
   RC next_entry(RID *rid) override;
   RC destroy() override;
 
-  RC open(const char *left_key, int left_len, bool left_inclusive, const char *right_key, int right_len,
+  RC open(const vector<const char *> &left_keys, const vector<int> &left_lens, bool left_inclusive, const vector<const char *> &right_keys, const vector<int> &right_lens,
       bool right_inclusive);
 
 private:
