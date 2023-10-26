@@ -112,6 +112,7 @@ public:
   explicit Value(bool val);
   explicit Value(date val);
   explicit Value(const char *s, int len = 0);
+  explicit Value(bool is_null,bool mOOn){ set_null(is_null);}
 
   Value(const Value &other) = default;
   Value &operator=(const Value &other) = default;
@@ -130,6 +131,7 @@ public:
   void set_boolean(bool val);
   void set_date(date val);
   void set_string(const char *s, int len = 0);
+  void set_null(bool is_null){ is_null? str_value_ = "NULL": str_value_ = ""; }
   void set_value(const Value &value);
 
   bool check_date(date val) const;
@@ -181,6 +183,7 @@ public:
   bool get_boolean() const;
   date get_date() const;
   std::string get_date_str() const;
+  bool get_null_or_();
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;

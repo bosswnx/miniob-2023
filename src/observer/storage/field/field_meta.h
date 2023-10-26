@@ -31,10 +31,10 @@ class FieldMeta
 {
 public:
   FieldMeta();
-  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible);
+  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false);
   ~FieldMeta() = default;
 
-  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible);
+  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false);
 
 public:
   const char *name() const;
@@ -42,6 +42,7 @@ public:
   int offset() const;
   int len() const;
   bool visible() const;
+  bool is_null() const;
 
 public:
   void desc(std::ostream &os) const;
@@ -56,4 +57,5 @@ protected:
   int attr_offset_;  // 字段在记录中的偏移量
   int attr_len_;
   bool visible_;  // 是否可见
+  bool is_null_ = false;
 };

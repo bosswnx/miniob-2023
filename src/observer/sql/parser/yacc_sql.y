@@ -96,6 +96,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LOAD
         DATA
         INFILE
+        NULLABLE
+        NOT_NULL
         EXPLAIN
         UNIQUE
         AS
@@ -144,6 +146,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> ID
 %token <string> DATE_STR
 %token <string> SSS
+%token <string> NULL_T
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -152,10 +155,13 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 // %type <join_condition>      join_condition
 %type <value>               value
 %type <number>              number
+
+
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <relation>            relation
 %type <attr_infos>          attr_def_list
+%type <attr_info>           opt_null
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
@@ -393,6 +399,7 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->is_null = false;
       free($1);
     }
     | ID type
@@ -401,9 +408,38 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->is_null = false;
       free($1);
     }
+    | ID type opt_null
+    {
+      $$ = new AttrInfoSqlNode;
+      $$->type = (AttrType)$2;
+      $$->name = $1;
+      $$->length = 4;
+      $$->is_null = $3;
+      free($1);
+      
+    }
+    | ID type LBRACE number RBRACE opt_null
+    {
+      $$ = new AttrInfoSqlNode;
+      $$->type = (AttrType)$2;
+      $$->name = $1;
+      $$->length = $4;
+      $$->is_null = $6;
+      free($1);
+      
+    }
     ;
+opt_null:
+	NOT_NULL {
+		$$->is_null = false;
+	}
+	| NULLABLE {
+		$$->is_null = true;
+	}
+	; 
 number:
     NUMBER {$$ = $1;}
     ;
@@ -462,6 +498,9 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+    }
+    |NULLABLE {
+      $$ = new Value(true, true);
     }
     ;
     

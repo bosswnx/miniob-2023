@@ -191,6 +191,7 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
+
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
@@ -442,7 +443,13 @@ std::string Value::get_date_str() const
   }
   return res;
 }
-
+//匹配str_value_是否为null，如果是返回true，否则返回false
+bool Value::get_null_or_(){
+  if(str_value_ == "null"){
+    return true;
+  }
+  return false;
+}
 float Value::get_float() const
 {
   switch (attr_type_) {

@@ -79,6 +79,8 @@ QUOTE            [\'\"]
 
 [\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+
+
 {QUOTE}[0-9]{4}\-(0?[1-9]|[1-9][0-9])\-(0?[1-9]|[1-9][0-9]){QUOTE} yylval->string=strdup(yytext); RETURN_TOKEN(DATE_STR);  // 使用正则表达式过滤DATE。需要在yacc文件中增加 %token <string> DATE_STR
 
 ";"                                     RETURN_TOKEN(SEMICOLON);
@@ -120,6 +122,10 @@ FLOAT                                   RETURN_TOKEN(FLOAT_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
+
+NULL                                    RETURN_TOKEN(NULLABLE);
+"NOT NULL"                              RETURN_TOKEN(NOT_NULL);
+
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
 AS                                      RETURN_TOKEN(AS);

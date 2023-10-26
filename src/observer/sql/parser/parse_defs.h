@@ -76,6 +76,20 @@ struct RelAttrSqlNode
   AggreType aggre_type;
 };
 
+
+/*
+ * @brief 描述一个属性
+ * @ingroup value.is_null
+ * @details 判断是否可以null存储
+*/
+typedef enum
+{
+  ISTRUE,
+  ISFALSE,
+  NOTTRUEORFALSE
+} TrueOrFalse;
+
+
 /**
  * @brief 描述一个relation
  * @ingroup SQLParser
@@ -231,6 +245,7 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  bool        is_null;    ///< 是否可以null存储
 };
 
 /**
