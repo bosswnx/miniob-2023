@@ -381,7 +381,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, const char *index_name)
+RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, const char *index_name, bool is_unique)
 {
   if (common::is_blank(index_name) || field_metas.empty()) {
     LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
@@ -389,7 +389,7 @@ RC Table::create_index(Trx *trx, std::vector<const FieldMeta *> field_metas, con
   }
 
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, field_metas);
+  RC rc = new_index_meta.init(index_name, field_metas, is_unique);
   if (rc != RC::SUCCESS) {
     // TODO: fix this
     // LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s", 

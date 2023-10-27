@@ -23,13 +23,14 @@ See the Mulan PSL v2 for more details. */
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
-RC IndexMeta::init(const char *name, std::vector<const FieldMeta *> &field)
+RC IndexMeta::init(const char *name, std::vector<const FieldMeta *> &field, bool is_unique)
 {
   if (common::is_blank(name)) {
     LOG_ERROR("Failed to init index, name is empty.");
     return RC::INVALID_ARGUMENT;
   }
 
+  is_unique_ = is_unique;
   name_ = name;
   for (const auto &f : field) {
     fields_.push_back(f->name());

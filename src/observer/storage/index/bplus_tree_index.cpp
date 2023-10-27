@@ -40,7 +40,7 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, co
     types.emplace_back(field_meta.type());
     lens.emplace_back(field_meta.len());
   }
-  RC rc = index_handler_.create(file_name, types, lens);
+  RC rc = index_handler_.create(file_name, index_meta.is_unique(), types, lens);
   if (RC::SUCCESS != rc) {
     // TODO: fix this log
     // LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
