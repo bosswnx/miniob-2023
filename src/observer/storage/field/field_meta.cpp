@@ -30,13 +30,13 @@ const static Json::StaticString FIELD_NULL("is_null");
 FieldMeta::FieldMeta() : attr_type_(AttrType::UNDEFINED), attr_offset_(-1), attr_len_(0), visible_(false)
 {}
 
-FieldMeta::FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null)
+FieldMeta::FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null, int index__)
 {
-  [[maybe_unused]] RC rc = this->init(name, attr_type, attr_offset, attr_len, visible, is_null);
+  [[maybe_unused]] RC rc = this->init(name, attr_type, attr_offset, attr_len, visible, is_null, index__);
   ASSERT(rc == RC::SUCCESS, "failed to init field meta. rc=%s", strrc(rc));
 }
 
-RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null)
+RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null, int index__)
 {
   if (common::is_blank(name)) {
     LOG_WARN("Name cannot be empty");
@@ -55,7 +55,7 @@ RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int at
   attr_offset_ = attr_offset;
   visible_ = visible;
   is_null_ = is_null;
-
+  index_ = index__;
   LOG_INFO("Init a field with name=%s", name);
   return RC::SUCCESS;
 }
@@ -107,7 +107,7 @@ void FieldMeta::to_json(Json::Value &json_value) const
   
 }
 
-RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
+RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field,int index)
 {
   if (!json_value.isObject()) {
     LOG_ERROR("Failed to deserialize field. json is not an object. json value=%s", json_value.toStyledString().c_str());
@@ -154,5 +154,5 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
   int len = len_value.asInt();
   bool visible = visible_value.asBool();
   bool is_null = null_value.asBool();
-  return field.init(name, type, offset, len, visible, is_null);
+  return field.init(name, type, offset, len, visible, is_null,index);
 }

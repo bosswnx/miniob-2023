@@ -31,10 +31,10 @@ class FieldMeta
 {
 public:
   FieldMeta();
-  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false);
+  FieldMeta(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false, int index__ = 0);
   ~FieldMeta() = default;
 
-  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false);
+  RC init(const char *name, AttrType attr_type, int attr_offset, int attr_len, bool visible, bool is_null = false, int index__ = 0);
 
 public:
   const char *name() const;
@@ -43,20 +43,21 @@ public:
   int len() const;
   bool visible() const;
   bool is_null() const;
-
+  int index() const{return index_;}
 public:
   void desc(std::ostream &os) const;
 
 public:
   void to_json(Json::Value &json_value) const;
-  static RC from_json(const Json::Value &json_value, FieldMeta &field);
+  static RC from_json(const Json::Value &json_value, FieldMeta &field, int index);
 
 protected:
   std::string name_;
   AttrType attr_type_;
   int attr_offset_;  // 字段在记录中的偏移量
   int attr_len_;
-  bool visible_;  // 是否可见
+  bool visible_; 
+  int  index_;
   bool is_null_ = false;
   bool value_null_ = false;
 };

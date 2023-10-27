@@ -90,6 +90,7 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 
   // 字段类型检查
   auto table_meta_ = table->table_meta();
+
   for (int i = 0; i < field_metas.size(); i++) {
     if(update.targets[i].is_value) {
       if (field_metas[i].type() != update.targets[i].value.attr_type()) {
@@ -117,6 +118,7 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
           return RC::INVALID_ARGUMENT;
         }
       }
+    }
     }
   }
 

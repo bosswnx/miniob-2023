@@ -126,6 +126,11 @@ void Value::set_string(const char *s, int len /*= 0*/)
 
 void Value::set_value(const Value &value)
 {
+  if(value.get_null_or_() == true)
+  {
+    set_null(true);
+    return;
+  }
   switch (value.attr_type_) {
     case INTS: {
       set_int(value.get_int());
