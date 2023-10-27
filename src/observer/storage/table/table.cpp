@@ -22,6 +22,8 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/defs.h"
+#include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
@@ -576,14 +578,68 @@ Index *Table::find_index(const char *index_name) const
   }
   return nullptr;
 }
-Index *Table::find_index_by_field(const char *field_name) const
+Index *Table::find_index_by_fields(const vector<string> &fields_name, const vector<CompOp> &comps, const vector<Value> &values,
+    vector<Value> &l_limits, vector<Value> &r_limits, bool &l_inclusive, bool &r_inclusive) const
 {
   const TableMeta &table_meta = this->table_meta();
-  const IndexMeta *index_meta = table_meta.find_index_by_field(field_name);
-  if (index_meta != nullptr) {
-    return this->find_index(index_meta->name());
+  int match_num = 0;
+  const IndexMeta *index_meta = table_meta.find_index_by_fields(fields_name, comps, match_num);
+
+  if (index_meta == nullptr) {
+    return nullptr;
   }
-  return nullptr;
+  l_inclusive = true;
+  r_inclusive = true;
+  for (int i = 0; i < match_num; i++) {
+    bool left_limit = false;
+    bool right_limit = false;
+    AttrType type = AttrType::UNDEFINED;
+    for (int j = 0; j < fields_name.size(); j++) {
+      if (fields_name[j] == index_meta->field(i)) {
+        type = values[j].attr_type();
+        switch (comps[j]) {
+          case EQUAL_TO: {
+            left_limit = true;
+            right_limit = true;
+            l_limits.push_back(values[j]);
+            r_limits.push_back(values[j]);
+          } break;
+          case LESS_EQUAL: {
+            right_limit = true;
+            r_limits.push_back(values[j]);
+          } break;
+          case LESS_THAN: {
+            right_limit = true;
+            r_limits.push_back(values[j]);
+            r_inclusive = false;
+          } break;
+          case GREAT_EQUAL: {
+            left_limit = true;
+            l_limits.push_back(values[j]);
+          } break;
+          case GREAT_THAN: {
+            left_limit = true;
+            l_limits.push_back(values[j]);
+            l_inclusive = false;
+          } break;
+          default: {
+            // TODO: 继续支持其他的比较操作
+            LOG_ERROR("Invalid comp op. op=%d", comps[j]);
+            return nullptr;
+          }
+        }
+      }
+    }
+    if (!left_limit) {
+      // 左边界没有限制，使用最小值
+      l_limits.push_back(Value::min_value(type));
+    }
+    if (!right_limit) {
+      // 右边界没有限制，使用最大值
+      r_limits.push_back(Value::max_value(type));
+    }
+  }
+  return this->find_index(index_meta->name());
 }
 
 RC Table::sync()

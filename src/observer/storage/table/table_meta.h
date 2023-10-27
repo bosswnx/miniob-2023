@@ -57,7 +57,7 @@ public:
   int sys_field_num() const;
 
   const IndexMeta *index(const char *name) const;
-  const IndexMeta *find_index_by_field(const char *field) const;
+  const IndexMeta *find_index_by_fields(const std::vector<std::string> &field, const std::vector<CompOp> &comps, int &match_num) const;
   const IndexMeta *index(int i) const;
   int index_num() const;
 

@@ -80,6 +80,8 @@ public:
    */
   virtual IndexScanner *create_scanner(const char *left_key, int left_len, bool left_inclusive, const char *right_key,
       int right_len, bool right_inclusive) = 0;
+  virtual IndexScanner *create_scanner(const vector<const char *> &left_keys, const vector<int> &left_lens, bool left_inclusive, const vector<const char *> &right_keys,
+      const vector<int> &right_len, bool right_inclusive) = 0;
 
   /**
    * @brief 同步索引数据到磁盘

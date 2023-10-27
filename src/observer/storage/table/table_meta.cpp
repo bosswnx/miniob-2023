@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 #include <common/lang/string.h>
 
+#include "sql/parser/parse_defs.h"
 #include "storage/table/table_meta.h"
 #include "json/json.h"
 #include "common/log/log.h"
@@ -165,16 +166,38 @@ const IndexMeta *TableMeta::index(const char *name) const
   return nullptr;
 }
 
-const IndexMeta *TableMeta::find_index_by_field(const char *field) const
+const IndexMeta *TableMeta::find_index_by_fields(const vector<string> &fields, const vector<CompOp> &comps, int &max_match_num) const
 {
+  const IndexMeta *found_index = nullptr;
+  max_match_num = 0;
   for (const IndexMeta &index : indexes_) {
-    for (const auto &field_name : index.fields()) {
-      if (0 == strcmp(field_name.c_str(), field)) {
-        return &index;
+    int match_num = 0;
+    for (int i = 0; i < index.field_num(); i++) {
+      bool is_range = false;
+      bool paired = false;
+      for (int j = 0; j < fields.size(); j++) {
+        if (index.field(i) == fields[j]) {
+          match_num++;
+          paired = true;
+          if (comps[i] != CompOp::EQUAL_TO) {
+            is_range = true;
+          }
+          break;
+        }
+        if (paired) {
+          break;
+        }
+      }
+      if (!paired || is_range) {
+        break;
       }
     }
+    if (match_num > max_match_num) {
+      max_match_num = match_num;
+      found_index = &index;
+    }
   }
-  return nullptr;
+  return found_index;
 }
 
 const IndexMeta *TableMeta::index(int i) const

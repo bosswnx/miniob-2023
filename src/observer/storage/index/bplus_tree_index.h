@@ -41,7 +41,7 @@ public:
   IndexScanner *create_scanner(const char *left_key, int left_len, bool left_inclusive, const char *right_key,
       int right_len, bool right_inclusive) override;
   IndexScanner *create_scanner(const vector<const char *> &left_keys, const vector<int> &left_lens, bool left_inclusive, const vector<const char *> &right_keys,
-      const vector<int> &right_len, bool right_inclusive);
+      const vector<int> &right_len, bool right_inclusive) override;
 
   RC sync() override;
 

@@ -18,6 +18,8 @@ See the Mulan PSL v2 for more details. */
 #include <utility>
 #include "storage/table/table_meta.h"
 
+using std::vector, std::string;
+
 struct RID;
 class Record;
 class DiskBufferPool;
@@ -118,12 +120,14 @@ private:
 
 public:
   Index *find_index(const char *index_name) const;
-  Index *find_index_by_field(const char *field_name) const;
+  // 这里还需要处理出索引扫描的区间
+  Index *find_index_by_fields(const vector<string> &fields_name, const vector<CompOp> &comp, const vector<Value> &values,
+      vector<Value> &l_limits, vector<Value> &r_limits, bool &l_inclusive, bool &r_inclusive) const;
 
 private:
-  std::string base_dir_;
+  string base_dir_;
   TableMeta   table_meta_;
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
-  std::vector<Index *> indexes_;
+  vector<Index *> indexes_;
 };

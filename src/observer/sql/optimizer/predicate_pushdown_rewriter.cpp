@@ -102,6 +102,7 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
     auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
     CompOp comp = comparison_expr->comp();
     if (comp != EQUAL_TO) {
+      // TODO: 增加对其它比较操作的支持
       // 简单处理，仅取等值比较。当然还可以取一些范围比较，还有 like % 等操作
       // 其它的还有 is null 等
       return rc;

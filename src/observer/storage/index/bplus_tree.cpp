@@ -1394,7 +1394,7 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &
     if (i < user_keys.size()) {
       memcpy(static_cast<char *>(keys.get()) + offset, user_keys[i], file_header_.attr_lengths[i]);
     } else {
-      memcpy(static_cast<char *>(keys.get()) + offset, 0, file_header_.attr_lengths[i]);
+      memset(static_cast<char *>(keys.get()) + offset, 0, file_header_.attr_lengths[i]);
     }
     offset += file_header_.attr_lengths[i];
   }
@@ -1696,19 +1696,13 @@ RC BplusTreeHandler::delete_entry(const char *user_key, const RID *rid)
 
 RC BplusTreeHandler::delete_entry(const vector<const char *> &user_keys, const RID *rid)
 {
-  MemPoolItem::unique_ptr pkey = mem_pool_item_->alloc_unique_ptr();
+  
+  MemPoolItem::unique_ptr pkey = make_keys(user_keys, *rid);
   if (nullptr == pkey) {
     LOG_WARN("Failed to alloc memory for key. size=%d", file_header_.keys_length);
     return RC::NOMEM;
   }
   char *key = static_cast<char *>(pkey.get());
-
-  int offset = 0;
-  for (int i = 0; i < user_keys.size(); i++) {
-    memcpy(key + offset, user_keys[i], file_header_.attr_lengths[i]);
-    offset += file_header_.attr_lengths[i];
-  }
-  memcpy(key + offset, rid, sizeof(*rid));
 
   BplusTreeOperationType op = BplusTreeOperationType::DELETE;
   LatchMemo latch_memo(disk_buffer_pool_);
@@ -1763,6 +1757,7 @@ RC BplusTreeScanner::open(const vector<const char *> &left_user_keys, const vect
     return RC::INTERNAL;
   }
 
+  attr_size = left_user_keys.size();
   inited_ = true;
   first_emitted_ = false;
 
@@ -1803,8 +1798,8 @@ RC BplusTreeScanner::open(const vector<const char *> &left_user_keys, const vect
         if (should_inclusive_after_fix) {
           left_inclusive = true;
         }
-        fixed_left_keys.push_back(fixed_left_key);
       }
+      fixed_left_keys.push_back(fixed_left_key);
     }
     // char *fixed_left_key = const_cast<char *>(left_user_key);
     // if (tree_handler_.file_header_.attr_type == CHARS) {
@@ -1889,8 +1884,8 @@ RC BplusTreeScanner::open(const vector<const char *> &left_user_keys, const vect
         if (should_inclusive_after_fix) {
           right_inclusive = true;
         }
-        fixed_right_keys.push_back(fixed_right_key);
       }
+      fixed_right_keys.push_back(fixed_right_key);
     }
 
     if (right_inclusive) {
@@ -1928,7 +1923,7 @@ bool BplusTreeScanner::touch_end()
   
   LeafIndexNodeHandler node(tree_handler_.file_header_, current_frame_);
   const char *this_key = node.keys_at(iter_index_);
-  int compare_result = tree_handler_.key_comparator_(this_key, static_cast<char *>(right_key_.get()));
+  int compare_result = tree_handler_.key_comparator_(this_key, static_cast<char *>(right_key_.get()), attr_size);
   return compare_result > 0;
 }
 
@@ -1940,19 +1935,29 @@ RC BplusTreeScanner::next_entry(RID &rid)
 
   if (!first_emitted_) {
     fetch_item(rid);
+    last_rid = rid;
     first_emitted_ = true;
     return RC::SUCCESS;
   }
-
-  iter_index_++;
 
   LeafIndexNodeHandler node(tree_handler_.file_header_, current_frame_);
   if (iter_index_ < node.size()) {
     if (touch_end()) {
       return RC::RECORD_EOF;
     }
-
     fetch_item(rid);
+    if (rid != last_rid) {
+      last_rid = rid;
+      return RC::SUCCESS;
+    }
+  }
+  iter_index_++;
+  if (iter_index_ < node.size()) {
+    if (touch_end()) {
+      return RC::RECORD_EOF;
+    }
+    fetch_item(rid);
+    last_rid = rid;
     return RC::SUCCESS;
   }
 

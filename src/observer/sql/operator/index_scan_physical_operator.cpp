@@ -19,19 +19,19 @@ See the Mulan PSL v2 for more details. */
 
 IndexScanPhysicalOperator::IndexScanPhysicalOperator(
     Table *table, Index *index, bool readonly, 
-    const Value *left_value, bool left_inclusive, 
-    const Value *right_value, bool right_inclusive)
+    const vector<Value> &left_values, bool left_inclusive, 
+    const vector<Value> &right_values, bool right_inclusive)
     : table_(table), 
       index_(index), 
       readonly_(readonly), 
       left_inclusive_(left_inclusive), 
       right_inclusive_(right_inclusive)
 {
-  if (left_value) {
-    left_value_ = *left_value;
+  if (left_values.size()) {
+    left_values_ = left_values;
   }
-  if (right_value) {
-    right_value_ = *right_value;
+  if (right_values.size()) {
+    right_values_ = right_values;
   }
 }
 
@@ -40,12 +40,23 @@ RC IndexScanPhysicalOperator::open(Trx *trx)
   if (nullptr == table_ || nullptr == index_) {
     return RC::INTERNAL;
   }
-
-  IndexScanner *index_scanner = index_->create_scanner(left_value_.data(),
-      left_value_.length(),
+  vector<const char *> left_values;
+  vector<int> left_lens;
+  vector<const char *> right_values;
+  vector<int> right_lens;
+  for (const Value &value : left_values_) {
+    left_values.push_back(value.data());
+    left_lens.push_back(value.length());
+  }
+  for (const Value &value : right_values_) {
+    right_values.push_back(value.data());
+    right_lens.push_back(value.length());
+  }
+  IndexScanner *index_scanner = index_->create_scanner(left_values,
+      left_lens,
       left_inclusive_,
-      right_value_.data(),
-      right_value_.length(),
+      right_values,
+      right_lens,
       right_inclusive_);
   if (nullptr == index_scanner) {
     LOG_WARN("failed to create index scanner");

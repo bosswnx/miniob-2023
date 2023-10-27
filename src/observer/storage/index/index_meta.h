@@ -41,6 +41,7 @@ public:
 public:
   const char *name() const;
   const std::vector<std::string> &fields() const;
+  const std::string &field(int index) const {return fields_[index]; };
   const int field_num() const { return fields_.size(); }
 
   void desc(std::ostream &os) const;

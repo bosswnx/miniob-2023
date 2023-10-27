@@ -21,7 +21,6 @@ See the Mulan PSL v2 for more details. */
 #include <sstream>
 #include <functional>
 #include <memory>
-#include <sys/_types/_int32_t.h>
 #include <vector>
 
 #include "common/lang/lower_bound.h"
@@ -686,5 +685,7 @@ private:
 
   common::MemPoolItem::unique_ptr right_key_;
   int iter_index_ = -1;
+  RID last_rid;
+  int attr_size;
   bool first_emitted_ = false;
 };
