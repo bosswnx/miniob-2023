@@ -502,7 +502,6 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
   old_values.resize(values.size());
   rc = record_handler_->update_record(&old_record.rid(), field_metas, values, &old_values);
   if (rc != RC::SUCCESS) {
-    LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
 

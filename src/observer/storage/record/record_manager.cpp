@@ -244,7 +244,6 @@ RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
     }
   // memcpy(record_data, data, record_size);
   frame_->mark_dirty();
-
   return RC::SUCCESS;
 }
 

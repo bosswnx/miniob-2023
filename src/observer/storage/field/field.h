@@ -38,6 +38,9 @@ public:
   const char *table_alias() const { return table_alias_.c_str();}
   const bool have_field_alias() const { return !field_alias_.empty(); }
   const char *field_alias() const { return field_alias_.c_str(); }
+  const bool is_null(){
+    return field_->is_null();
+  }
   void set_table(const Table *table) { this->table_ = table; }
   void set_field(const FieldMeta *field) { this->field_ = field; }
 
