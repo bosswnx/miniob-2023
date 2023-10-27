@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <unordered_set>
 #include <mutex>
 #include <utility>
+#include <vector>
 
 #include "sql/parser/parse.h"
 #include "storage/record/record_manager.h"
@@ -146,7 +147,7 @@ public:
 
   virtual RC insert_record(Table *table, Record &record) = 0;
   virtual RC delete_record(Table *table, Record &record) = 0;
-  virtual RC update_record(Table *table, Record &old_record, std::pair<Field*, Value*> *values_with_field) = 0;
+  virtual RC update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values) = 0;
   virtual RC visit_record(Table *table, Record &record, bool readonly) = 0;
 
   virtual RC start_if_need() = 0;

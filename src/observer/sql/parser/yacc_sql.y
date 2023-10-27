@@ -124,6 +124,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::vector<JoinSqlNode> *        join_list;
+  UpdateSqlNode *                   update_info;
   char *                            string;
   int                               number;
   float                             floats;
@@ -158,6 +159,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <join_list>           join_list
 %type <expression>          expression
 %type <expression_list>     expression_list
+%type <update_info>         update_value_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -445,21 +447,45 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       free($3);
     }
     ;
+
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET ID EQ value update_value_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
-      $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
       if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
+        $$->update.attributes_name.swap($7->attributes_name);
+        $$->update.values.swap($7->values);
         delete $7;
+      }
+      $$->update.relation_name = $2;
+      $$->update.attributes_name.emplace_back($4);
+      $$->update.values.emplace_back(*$6);
+      if ($8 != nullptr) {
+        $$->update.conditions.swap(*$8);
+        delete $8;
       }
       free($2);
       free($4);
+    };
+
+update_value_list:
+    /* empty */
+    {
+      $$ = nullptr;
     }
-    ;
+    | COMMA ID EQ value update_value_list
+    {
+      if ($5 != nullptr) {
+        $$ = $5;
+      } else {
+        $$ = new UpdateSqlNode;
+      }
+      $$->attributes_name.emplace_back($2);
+      $$->values.emplace_back(*$4);
+      free($2);
+      delete $4;
+    };
+
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
     SELECT select_attr FROM ID rel_list join_list where
     {

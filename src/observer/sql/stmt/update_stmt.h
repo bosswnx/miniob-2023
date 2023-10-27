@@ -15,8 +15,11 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "common/rc.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
+#include "storage/field/field_meta.h"
 #include <utility> // pair
+#include <vector>
 
 class Table;
 class FilterStmt;
@@ -30,7 +33,8 @@ class UpdateStmt : public Stmt
 {
 public:
   // 使用 pair 存储字段名和 Value
-  UpdateStmt(Table *table, FilterStmt *filter_stmt, std::pair<Field*, Value*> *values_with_field, int value_amount);
+  UpdateStmt(Table *table, FilterStmt *filter_stmt, 
+      const std::vector<FieldMeta> &field_metas, const std::vector<Value> &values, int value_amount);
 
   ~UpdateStmt() override;
   FilterStmt *filter_stmt() const
@@ -50,22 +54,21 @@ public:
   {
     return table_;
   }
-  // Value *values() const
-  // {
-  //   return values_;
-  // }
-  std::pair<Field*, Value*> *values_with_field() const
-  {
-    return values_with_field_;
-  }
   int value_amount() const
   {
     return value_amount_;
   }
+  const std::vector<FieldMeta> &field_metas() const {
+    return field_metas_;
+  }
+  const std::vector<Value> &values() const {
+    return values_;
+  }
 
 private:
   Table *table_ = nullptr;
-  std::pair<Field*, Value*> *values_with_field_ = nullptr;
+  std::vector<FieldMeta> field_metas_;
+  std::vector<Value> values_;
   int value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
 };

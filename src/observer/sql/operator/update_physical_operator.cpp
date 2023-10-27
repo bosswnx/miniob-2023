@@ -22,8 +22,8 @@ See the Mulan PSL v2 for more details. */
 
 using namespace std;
 
-UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::pair<Field*, Value*> *values_with_field)
-    :table_(table), values_with_field_(values_with_field)
+UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, const std::vector<FieldMeta> &field_metas, const std::vector<Value> &values)
+    :table_(table), field_metas_(field_metas), values_(values)
 {}
 
 RC UpdatePhysicalOperator::open(Trx *trx) {
@@ -31,10 +31,6 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
         return RC::SUCCESS;
     }
     std::unique_ptr<PhysicalOperator> &child = children_[0];
-    if (child->type() == PhysicalOperatorType::UPDATE) {
-      UpdatePhysicalOperator *update_physical_operator = static_cast<UpdatePhysicalOperator *>(child.get());
-      auto test = update_physical_operator->values_with_field();
-    }
     RC rc = child->open(trx);
     if (rc != RC::SUCCESS) {
         LOG_WARN("failed to open child operator: %s", strrc(rc));
@@ -72,7 +68,7 @@ RC UpdatePhysicalOperator::next()
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &old_record = row_tuple->record();
     // rc = trx_->delete_record(table_, old_record);
-    rc = trx_->update_record(table_, old_record, values_with_field_);
+    rc = trx_->update_record(table_, old_record, field_metas_, values_);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to delete record: %s", strrc(rc));
       return rc;

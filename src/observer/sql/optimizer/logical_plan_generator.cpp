@@ -192,7 +192,8 @@ RC LogicalPlanGenerator::create_plan(
   Table *table = update_stmt->table();
   // const Value *value = update_stmt->values();
   // int value_amount = update_stmt->value_amount();
-  std::pair<Field*, Value*> *values_with_field = update_stmt->values_with_field();
+  auto &field_metas = update_stmt->field_metas();
+  auto &values = update_stmt->values();
   FilterStmt *filter_stmt = update_stmt->filter_stmt();
 
   std::vector<Field> fields;
@@ -210,7 +211,7 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, values_with_field));
+  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_metas, values));
 
   if (predicate_oper) {
     predicate_oper->add_child(std::move(table_get_oper));

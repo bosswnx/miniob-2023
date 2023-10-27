@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "storage/trx/vacuous_trx.h"
+#include "storage/field/field_meta.h"
 #include <utility>
 
 using namespace std;
@@ -62,9 +63,9 @@ RC VacuousTrx::delete_record(Table *table, Record &record)
   return table->delete_record(record);
 }
 
-RC VacuousTrx::update_record(Table *table, Record &old_record, std::pair<Field*, Value*> *values_with_field)
+RC VacuousTrx::update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values)
 {
-  return table->update_record(old_record, values_with_field);
+  return table->update_record(old_record, field_metas, values);
 }
 
 RC VacuousTrx::visit_record(Table *table, Record &record, bool readonly)
