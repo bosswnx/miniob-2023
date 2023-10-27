@@ -53,7 +53,7 @@ RC AggregationPhysicalOperator::next() {
   auto *child = children_[0].get();
   vector<Value> cells(aggre_types_.size());
   bool initialized = false;
-  int count = 0;
+  vector<int> count(aggre_types_.size());
   while ((rc = child->next()) == RC::SUCCESS) {
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
     if (nullptr == tuple) {
@@ -87,8 +87,10 @@ RC AggregationPhysicalOperator::next() {
             return RC::INVALID_ARGUMENT;
           }
         }
+        count[i]++;
+        if(cell.get_null_or_() == true) count[i]--;
       }
-      count++;
+      
       continue;
     }
     for (int i = 0; i < aggre_types_.size(); i++) {
@@ -96,41 +98,58 @@ RC AggregationPhysicalOperator::next() {
       tuple->cell_at(i, cell);
       switch (aggre_types_[i]) {
         case AggreType::MAX: {
-          if (cells[i].compare(cell) < 0) {
+          // 检查是否为null
+          if (cells[i].get_null_or_() == false && cell.get_null_or_() == false) {
+            if (cells[i].compare(cell) < 0) {
             cells[i] = cell;
           }
+          }
+          
         } break;
         case AggreType::MIN: {
-          if (cells[i].compare(cell) > 0) {
+          if (cells[i].get_null_or_() == false && cell.get_null_or_() == false){
+            if (cells[i].compare(cell) > 0) {
             cells[i] = cell;
-          }
+          }}
         } break;
         case AggreType::SUM: {
-          if (cells[i].attr_type() == INTS) {
-            cells[i].set_int(cells[i].get_int() + cell.get_int());
-          } else {
-            cells[i].set_float(cells[i].get_float() + cell.get_float());
-          }
+          if (cell.get_null_or_() == false){
+            if (cells[i].attr_type() == INTS) {
+              cells[i].set_int(cells[i].get_int() + cell.get_int());
+            } else {
+              cells[i].set_float(cells[i].get_float() + cell.get_float());
+          }} 
         } break;
         case AggreType::AVG: {
+          if (cell.get_null_or_() == false){
           cells[i].set_float(cells[i].get_float() + cell.get_float());
-        }
+        } 
+        } break;
         default: break;
+      
       }
-    }
-    count++;
+      if(cell.get_null_or_()) count[i]--;
+      count[i]++;
+  }
   }
   // todo: trx
   for (int i = 0; i < aggre_types_.size(); i++) {
+    if(count[i] == 0 && aggre_types_[i] != AggreType::CNT && aggre_types_[i] != AggreType::CNTALL ) {
+      cells[i].set_null(true);
+      continue;
+      }
     switch (aggre_types_[i]) {
       case AggreType::AVG: {
         cells[i].set_type(FLOATS);
-        cells[i].set_float(cells[i].get_float() / count);
+        cells[i].set_float(cells[i].get_float() / count[i]);
       } break;
-      case AggreType::CNT:
+      case AggreType::CNT:{
+        cells[i].set_type(INTS);
+        cells[i].set_int(count[i]);
+      } break;
       case AggreType::CNTALL: {
         cells[i].set_type(INTS);
-        cells[i].set_int(count);
+        cells[i].set_int(count[i]);
       }
       default: break;
     }

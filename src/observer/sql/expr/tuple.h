@@ -196,6 +196,16 @@ public:
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
     cell.set_type(field_meta->type());
+    //this->record_,判断第index个字段是否为为1，如果为1则将cell.is_null_置为true
+    if(this->record_->data()[index] == 1)
+    {
+      cell.set_null(true);
+    }
+    else
+    {
+      cell.set_null(false);
+    }
+    
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;
   }

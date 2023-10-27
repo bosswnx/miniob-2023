@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
@@ -84,7 +85,6 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     
 {
   RC rc = RC::SUCCESS;
-
   CompOp comp = condition.comp;
   if (comp < EQUAL_TO || comp >= NO_OP) {
     LOG_WARN("invalid compare operator : %d", comp);
@@ -102,9 +102,9 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
-
+  
   // 左 filterObj
-  if (condition.left_is_attr) {
+  if (condition.left_is_attr ) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
     rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);

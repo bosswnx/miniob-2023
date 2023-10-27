@@ -164,8 +164,12 @@ const char *Value::data() const
 }
 
 std::string Value::to_string() const
-{
+{ 
   std::stringstream os;
+  if (get_null_or_() == true){
+    os << "NULL";
+    return os.str();
+  }
   switch (attr_type_) {
     case INTS: {
       os << num_value_.int_value_;
@@ -322,6 +326,7 @@ bool Value::like(const char* s, const char *tmplt_s) const {
 }
 
 bool Value::check_date(date val) const {
+  
   int year = 0;
   int month = 0;
   int day = 0;
@@ -443,13 +448,8 @@ std::string Value::get_date_str() const
   }
   return res;
 }
-//匹配str_value_是否为null，如果是返回true，否则返回false
-bool Value::get_null_or_(){
-  if(str_value_ == "null"){
-    return true;
-  }
-  return false;
-}
+
+
 float Value::get_float() const
 {
   switch (attr_type_) {

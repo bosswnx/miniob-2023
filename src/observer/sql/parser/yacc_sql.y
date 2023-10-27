@@ -114,6 +114,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AVG
         LK
         NLK // NOT_LIKE
+        IS_NOT
+        IS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -161,7 +163,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr>            rel_attr
 %type <relation>            relation
 %type <attr_infos>          attr_def_list
-%type <attr_info>           opt_null
+%type <number>              opt_null
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
@@ -434,10 +436,10 @@ attr_def:
     ;
 opt_null:
 	NOT_NULL {
-		$$->is_null = false;
+		$$ = false;
 	}
 	| NULLABLE {
-		$$->is_null = true;
+		$$ = true;
 	}
 	; 
 number:
@@ -1161,6 +1163,8 @@ comp_op:
     | NI { $$ = NOT_IN; }
     | EXISTS { $$ = EXISTS_; }
     | NOT_EXISTS { $$ = NOT_EXISTS_; }
+    | IS_NOT { $$ = IS_NOT_; }
+    | IS { $$ = IS_; }
     ;
 
 load_data_stmt:

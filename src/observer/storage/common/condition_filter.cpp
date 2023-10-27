@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <stddef.h>
 #include <math.h>
 #include "condition_filter.h"
+#include "sql/parser/parse_defs.h"
 #include "storage/record/record_manager.h"
 #include "common/log/log.h"
 #include "storage/table/table.h"
@@ -116,6 +117,8 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
+
+
   return init(left, right, type_left, condition.comp);
 }
 
@@ -167,6 +170,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       return cmp_result >= 0;
     case GREAT_THAN:
       return cmp_result > 0;
+      case IS_NOT_: case IS_: {
+      return false;
+    } break;
     default:
       break;
   }

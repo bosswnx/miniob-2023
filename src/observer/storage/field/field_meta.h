@@ -58,4 +58,5 @@ protected:
   int attr_len_;
   bool visible_;  // 是否可见
   bool is_null_ = false;
+  bool value_null_ = false;
 };

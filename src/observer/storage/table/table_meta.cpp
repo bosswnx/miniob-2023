@@ -58,7 +58,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   RC rc = RC::SUCCESS;
   
-  int field_offset = 0;
+  int field_offset = field_num; // 记录null的bitmap的长度。[null_bitmap | record_data]
   int trx_field_num = 0;
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (trx_fields != nullptr) {
@@ -88,6 +88,8 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   }
 
   record_size_ = field_offset;
+
+  record_size_ += field_num; // 记录null的bitmap的长度。[null_bitmap | record_data]
 
   table_id_ = table_id;
   name_     = name;

@@ -131,7 +131,7 @@ public:
   void set_boolean(bool val);
   void set_date(date val);
   void set_string(const char *s, int len = 0);
-  void set_null(bool is_null){ is_null? str_value_ = "NULL": str_value_ = ""; }
+  void set_null(bool is_null){ is_null? is_null_ = true: is_null_ = false; }
   void set_value(const Value &value);
 
   bool check_date(date val) const;
@@ -183,7 +183,7 @@ public:
   bool get_boolean() const;
   date get_date() const;
   std::string get_date_str() const;
-  bool get_null_or_();
+  bool get_null_or_() const{ return is_null_;};
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;
@@ -195,4 +195,5 @@ private:
   } num_value_;
   date date_value_;
   std::string str_value_;
+  bool is_null_ = false;
 };

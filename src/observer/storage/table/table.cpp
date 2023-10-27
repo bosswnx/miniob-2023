@@ -319,9 +319,15 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
     }
   }
 
+  int record_size = table_meta_.record_size();  // 已包含记录null的bitmap的长度。[null_bitmap | record_data]
+
   // 复制所有字段的值
-  int record_size = table_meta_.record_size();
+
   char *record_data = (char *)malloc(record_size);
+  for(int i = 0; i < value_num; i++){
+    char p = char(values[i].get_null_or_()?1:0);
+    memcpy(record_data + i, &p, 1); 
+  }
 
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
@@ -333,14 +339,6 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
         copy_len = data_len + 1;
       }
     }
-    // // 输出 value.data() 到 test
-    // auto *test = (char *)malloc(copy_len);
-    // memcpy(test, value.data(), copy_len);
-    // // test 转成 int32_t
-    // int32_t int_value = 0;
-    // memcpy(&int_value, test, copy_len);
-    // // int32_t 转成 date
-    // date date_value = date(int_value);
 
     memcpy(record_data + field->offset(), value.data(), copy_len);
   }

@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 
 #include "json/json.h"
+#include <json/value.h>
 
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_TYPE("type");
@@ -103,7 +104,7 @@ void FieldMeta::to_json(Json::Value &json_value) const
   json_value[FIELD_LEN] = attr_len_;
   json_value[FIELD_VISIBLE] = visible_;
   json_value[FIELD_NULL] = is_null_;
-
+  
 }
 
 RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
@@ -119,7 +120,7 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
   const Json::Value &len_value = json_value[FIELD_LEN];
   const Json::Value &visible_value = json_value[FIELD_VISIBLE];
   const Json::Value &null_value = json_value[FIELD_NULL];
- 
+  // const Json::Value &value_null = json_value[FIELD_NULL];
   if (!name_value.isString()) {
     LOG_ERROR("Field name is not a string. json value=%s", name_value.toStyledString().c_str());
     return RC::INTERNAL;

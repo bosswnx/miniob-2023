@@ -122,7 +122,6 @@ FLOAT                                   RETURN_TOKEN(FLOAT_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
-
 NULL                                    RETURN_TOKEN(NULLABLE);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 
@@ -136,8 +135,11 @@ COUNT                                   RETURN_TOKEN(CNT);
 AVG                                     RETURN_TOKEN(AVG);
 SUM                                     RETURN_TOKEN(SUM);
 
-LIKE                                    RETURN_TOKEN(LK);
+"IS NOT"                                RETURN_TOKEN(IS_NOT);
+IS                                      RETURN_TOKEN(IS);
 "NOT LIKE"                              RETURN_TOKEN(NLK);
+LIKE                                    RETURN_TOKEN(LK);
+
 {ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);

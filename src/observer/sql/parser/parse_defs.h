@@ -82,12 +82,6 @@ struct RelAttrSqlNode
  * @ingroup value.is_null
  * @details 判断是否可以null存储
 */
-typedef enum
-{
-  ISTRUE,
-  ISFALSE,
-  NOTTRUEORFALSE
-} TrueOrFalse;
 
 
 /**
@@ -118,6 +112,8 @@ enum CompOp
   NOT_IN,
   EXISTS_,
   NOT_EXISTS_,
+  IS_NOT_,
+  IS_,
   NO_OP,
 };
 
