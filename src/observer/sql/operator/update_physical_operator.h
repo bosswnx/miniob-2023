@@ -28,7 +28,7 @@ class UpdateStmt;
 class UpdatePhysicalOperator : public PhysicalOperator
 {
 public:
-  UpdatePhysicalOperator(Table *table, std::pair<Field*, Value*> *values_with_field);
+  UpdatePhysicalOperator(Table *table, const vector<FieldMeta> &field_metas, const vector<Value> &values);
 
   virtual ~UpdatePhysicalOperator() = default;
 
@@ -37,7 +37,8 @@ public:
     return PhysicalOperatorType::UPDATE;
   }
 
-  std::pair<Field*, Value*> *values_with_field() const { return values_with_field_; }
+  const vector<FieldMeta> &field_metas() const { return field_metas_; }
+  const vector<Value> &values() const { return values_; }
 
   RC open(Trx *trx) override;
   RC next() override;
@@ -49,6 +50,7 @@ private:
   Table *table_ = nullptr;
   // std::vector<Value> values_;
   // Value values_; // 暂时支持单个值
-  std::pair<Field*, Value*> *values_with_field_ = nullptr;
+  vector<FieldMeta> field_metas_;
+  vector<Value> values_;
   Trx *trx_ = nullptr;
 };

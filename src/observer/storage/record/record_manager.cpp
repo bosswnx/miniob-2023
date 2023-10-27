@@ -14,10 +14,13 @@ See the Mulan PSL v2 for more details. */
 #include "storage/record/record_manager.h"
 #include "common/log/log.h"
 #include "common/lang/bitmap.h"
+#include "sql/parser/value.h"
 #include "storage/common/condition_filter.h"
+#include "storage/field/field_meta.h"
 #include "storage/trx/trx.h"
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 using namespace common;
 
@@ -210,7 +213,7 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   return RC::SUCCESS;
 }
 
-RC RecordPageHandler::update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field)
+RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values)
 {
   ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
 
@@ -226,9 +229,9 @@ RC RecordPageHandler::update_record(const RID *rid, std::pair<Field*, Value*> *v
   }
 
   char *record_data = get_record_data(rid->slot_num); // 获取原先记录的数据首地址
-  int col_offset = values_with_field->first->meta()->offset();
-  int col_len = values_with_field->first->meta()->len();
-  memcpy(record_data + col_offset, values_with_field->second->data(), col_len);
+  for (int i = 0; i < field_metas.size(); i++) {
+    memcpy(record_data + field_metas[i].offset(), values[i].data(), field_metas[i].len());
+  }
   // memcpy(record_data, data, record_size);
   frame_->mark_dirty();
 
@@ -435,7 +438,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   return record_page_handler.insert_record(data, rid);
 }
 
-RC RecordFileHandler::update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field)
+RC RecordFileHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> values)
 {
   RC ret = RC::SUCCESS;
 
@@ -450,7 +453,7 @@ RC RecordFileHandler::update_record(const RID *rid, std::pair<Field*, Value*> *v
   }
   lock_.unlock();
 
-  return record_page_handler.update_record(rid, values_with_field);
+  return record_page_handler.update_record(rid, field_metas, values);
 }
 
 

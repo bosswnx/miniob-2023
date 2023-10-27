@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <limits>
+#include "sql/parser/value.h"
+#include "storage/field/field_meta.h"
 #include "storage/trx/mvcc_trx.h"
 #include "storage/field/field.h"
 #include "storage/clog/clog.h"
@@ -185,7 +187,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
   return RC::SUCCESS;
 }
 
-RC MvccTrx::update_record(Table *table, Record &old_record, std::pair<Field*, Value*> *values_with_field){
+RC MvccTrx::update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values){
   // todo 
   return RC::SUCCESS;
 }

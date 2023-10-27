@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <vector>
 
+#include "storage/field/field_meta.h"
 #include "storage/trx/trx.h"
 
 class CLogManager;
@@ -68,7 +69,7 @@ public:
 
   RC insert_record(Table *table, Record &record) override;
   RC delete_record(Table *table, Record &record) override;
-  RC update_record(Table *table, Record &old_record, std::pair<Field*, Value*> *values_with_field) override;
+  RC update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values) override;
   /**
    * @brief 当访问到某条数据时，使用此函数来判断是否可见，或者是否有访问冲突
    * 

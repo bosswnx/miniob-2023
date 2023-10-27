@@ -17,12 +17,14 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "storage/db/db.h"
+#include "storage/field/field_meta.h"
 #include "storage/table/table.h"
 #include <cstdio>
 #include <utility> // pair
 
-UpdateStmt::UpdateStmt(Table *table, FilterStmt *filter_stmt, std::pair<Field*, Value*> *values_with_field, int value_amount)
-    : table_(table), filter_stmt_(filter_stmt), values_with_field_(values_with_field), value_amount_(value_amount)
+UpdateStmt::UpdateStmt(Table *table, FilterStmt *filter_stmt, 
+    const std::vector<FieldMeta> &field_metas, const std::vector<Value> &values, int value_amount)
+    : table_(table), filter_stmt_(filter_stmt), field_metas_(field_metas), values_(values), value_amount_(value_amount)
 {}
 
 UpdateStmt::~UpdateStmt()
@@ -42,7 +44,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return RC::INVALID_ARGUMENT;
   }
 
-  const char *field_name = update.attribute_name.c_str();
+  vector<string> fields_name = update.attributes_name;
 
   // check whether the table exists
   Table *table = db->find_table(table_name);
@@ -57,23 +59,25 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   table_map.insert(std::pair<std::string, Table *>(table_name, table));
 
   // printf("update field_name: %s\n", field_name);
-  const FieldMeta *field_meta = table->table_meta().field(field_name);
-  if (nullptr == field_meta) {
-    LOG_WARN("no such field. field=%s.%s.%s\n", db->name(), table->name(), field_name);
-    return RC::SCHEMA_FIELD_MISSING;
+  vector<FieldMeta> field_metas;
+  for (auto &field_name : fields_name) {
+    const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
+    if (nullptr == field_meta) {
+      LOG_WARN("no such field. field=%s.%s.%s\n", db->name(), table->name(), field_name.c_str());
+      return RC::SCHEMA_FIELD_MISSING;
+    }
+    field_metas.push_back(*field_meta);
   }
 
   // 字段类型检查
   auto table_meta_ = table->table_meta();
-
-  if (field_meta->type() != update.value.attr_type()) {
-    LOG_ERROR("Invalid value type. table name=%s, field name=%s, type=%d, but given=%d",
-              table_meta_.name(), field_meta->name(), field_meta->type(), update.value.attr_type());
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  for (int i = 0; i < field_metas.size(); i++) {
+    if (field_metas[i].type() != update.values[i].attr_type()) {
+      LOG_ERROR("Invalid value type. table name=%s, field name=%s, type=%d, but given=%d",
+                table_meta_.name(), field_metas[i].name(), field_metas[i].type(), update.values[i].attr_type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
   }
-
-
-  Field* query_field = new Field(table, field_meta); // 当前只支持单字段更新
 
   FilterStmt *filter_stmt = nullptr;
   RC rc = FilterStmt::create(db, 
@@ -89,10 +93,12 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   }
 
   // 转换类型 update.value 到 value
-  Value *value = new Value();
-  value->set_value(update.value);
-  std::pair<Field*, Value*> *values_with_field = new std::pair<Field*, Value*>(query_field, value);
-  UpdateStmt *update_stmt = new UpdateStmt(table, filter_stmt, values_with_field, 1);
+  vector<Value> values;
+  for (auto &value : update.values) {
+    values.push_back(value);
+  }
+
+  UpdateStmt *update_stmt = new UpdateStmt(table, filter_stmt, field_metas, values, values.size());
   stmt = update_stmt;
   return RC::SUCCESS;
 }

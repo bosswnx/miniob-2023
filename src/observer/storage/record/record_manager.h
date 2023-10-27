@@ -16,13 +16,16 @@ See the Mulan PSL v2 for more details. */
 
 #include <sstream>
 #include <limits>
+#include "sql/parser/value.h"
 #include "storage/buffer/disk_buffer_pool.h"
+#include "storage/field/field_meta.h"
 #include "storage/trx/latch_memo.h"
 #include "storage/record/record.h"
 #include "common/lang/bitmap.h"
 #include "storage/field/field.h"
 
 #include <utility>
+#include <vector>
 
 class ConditionFilter;
 class RecordPageHandler;
@@ -175,7 +178,7 @@ public:
    * @author Soulter
    * @date 2023/10/21
    */
-  RC update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field);
+  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values);
 
   /**
    * @brief 数据库恢复时，在指定位置插入数据
@@ -294,7 +297,7 @@ public:
    * @author Soulter
    * @date 2023/10/21
    */
-  RC update_record(const RID *rid, std::pair<Field*, Value*> *values_with_field);
+  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> values);
 
    /**
    * @brief 数据库恢复时，在指定文件指定位置插入数据

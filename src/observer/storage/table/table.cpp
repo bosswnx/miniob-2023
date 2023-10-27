@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "storage/field/field_meta.h"
+#include "storage/record/record.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -492,7 +493,7 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const Record &old_record, std::pair<Field*, Value*> *values_with_field) {
+RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> values) {
   RC rc = RC::SUCCESS;
 
   // 删除索引
@@ -511,19 +512,13 @@ RC Table::update_record(const Record &old_record, std::pair<Field*, Value*> *val
            name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
 
-  // 优化：这里的old_record中已经有 data 了，可以直接用，传到update_record()中
-  rc = record_handler_->update_record(&old_record.rid(), values_with_field);
+  rc = record_handler_->update_record(&old_record.rid(), field_metas, values);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
 
   // 添加索引
-  int col_offset = values_with_field->first->meta()->offset();
-  int col_len = values_with_field->first->meta()->len();
-  // 将const char*转换为char*
-  // char *old_record_data = const_cast<char *>(old_record.data());
-  // memcpy(old_record_data + col_offset, values_with_field->second->data(), col_len);
   // 到这里之后，old_record中的 data 已经被修改了，可以直接传入
   rc = insert_entry_of_indexes(old_record.data(), old_record.rid());
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
