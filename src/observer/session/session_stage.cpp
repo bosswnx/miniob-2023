@@ -151,7 +151,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
   
-  rc = execute_stage_.handle_request(sql_event);  // 生成输出 schema
+  rc = execute_stage_.handle_request(sql_event);  // 生成输出 schema 或者执行 executor
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do execute. rc=%s", strrc(rc));
     return rc;

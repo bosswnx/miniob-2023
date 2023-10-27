@@ -345,6 +345,44 @@ bool Value::check_date(date val) const {
   return true;
 }
 
+Value Value::max_value(AttrType type) {
+  Value value;
+  switch (type) {
+    case INTS: {
+      value.set_int(2147483647);
+    } break;
+    case FLOATS: {
+      value.set_float(3.40282e+038);
+    } break;
+    case DATES: {
+      value.set_date(99991231);
+    } break;
+    default: {
+      LOG_WARN("unsupported type: %d", type);
+    }
+  }
+  return value;
+}
+
+Value Value::min_value(AttrType type) {
+  Value value;
+  switch (type) {
+    case INTS: {
+      value.set_int(-2147483648);
+    } break;
+    case FLOATS: {
+      value.set_float(-3.40282e+038);
+    } break;
+    case DATES: {
+      value.set_date(10000101);
+    } break;
+    default: {
+      LOG_WARN("unsupported type: %d", type);
+    }
+  }
+  return value;
+}
+
 int Value::get_int() const
 {
   switch (attr_type_) {

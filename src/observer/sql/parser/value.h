@@ -165,6 +165,9 @@ public:
     return attr_type_;
   }
 
+  static Value max_value(AttrType type);
+  static Value min_value(AttrType type);
+
 public:
   /**
    * 获取对应的值

@@ -165,6 +165,7 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   unique_ptr<PredicateLogicalOperator> predicate_oper;
+  // TODO: 这里只实现了 AND，还需要实现 OR
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));

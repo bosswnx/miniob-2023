@@ -40,6 +40,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/calc_physical_operator.h"
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
+#include "sql/parser/parse_defs.h"
+#include "storage/field/field.h"
+#include "storage/field/field_meta.h"
 
 using namespace std;
 
@@ -101,24 +104,26 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
   // 看看是否有可以用于索引查找的表达式
   Table *table = table_get_oper.table();
 
-  Index *index = nullptr;
-  ValueExpr *value_expr = nullptr;
+  // TODO: 修改为多列索引
+  // 先把所有的表达式都拿出来，然后遍历所有的索引，看看是否有索引可以使用
+  // 需要保证之前已经把表达式能合并的都合并了
+  // 表达式左边是字段，右边是值
+
+  vector<string> fields_name;
+  vector<Value> values;
+  vector<CompOp> comps;
   for (auto &expr : predicates) {
     if (expr->type() == ExprType::COMPARISON) {
       auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
-      // 简单处理，就找等值查询
-      if (comparison_expr->comp() != EQUAL_TO) {
-        continue;
-      }
-
       unique_ptr<Expression> &left_expr = comparison_expr->left();
       unique_ptr<Expression> &right_expr = comparison_expr->right();
       // 左右比较的一边最少是一个值
       if (left_expr->type() != ExprType::VALUE && right_expr->type() != ExprType::VALUE) {
         continue;
       }
-
+      ValueExpr *value_expr = nullptr;
       FieldExpr *field_expr = nullptr;
+      bool swaped = false;
       if (left_expr->type() == ExprType::FIELD) {
         ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
         field_expr = static_cast<FieldExpr *>(left_expr.get());
@@ -127,28 +132,48 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
         ASSERT(left_expr->type() == ExprType::VALUE, "left expr should be a value expr while right is a field expr");
         field_expr = static_cast<FieldExpr *>(right_expr.get());
         value_expr = static_cast<ValueExpr *>(left_expr.get());
+        swaped = true;
       }
 
       if (field_expr == nullptr) {
         continue;
       }
-
-      const Field &field = field_expr->field();
-      index = table->find_index_by_field(field.field_name());
-      if (nullptr != index) {
-        break;
+      fields_name.push_back(field_expr->field().field_name());
+      values.push_back(value_expr->get_value());
+      switch (comparison_expr->comp()) {
+        case EQUAL_TO: comps.push_back(EQUAL_TO); break;
+        case NOT_EQUAL: comps.push_back(NOT_EQUAL); break;
+        case LESS_THAN: comps.push_back(swaped ? GREAT_THAN : LESS_THAN); break;
+        case LESS_EQUAL: comps.push_back(swaped ? GREAT_EQUAL : LESS_EQUAL); break;
+        case GREAT_THAN: comps.push_back(swaped ? LESS_THAN : GREAT_THAN); break;
+        case GREAT_EQUAL: comps.push_back(swaped ? LESS_EQUAL : GREAT_EQUAL); break;
+        case LIKE: comps.push_back(LIKE); break;
+        case NOT_LIKE: comps.push_back(NOT_LIKE); break;
+        default: {
+          LOG_WARN("unsupported comparison type %d", comparison_expr->comp());
+          return RC::INTERNAL;
+        }
       }
     }
   }
 
-  if (index != nullptr) {
-    ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
+  vector<Value> l_values;
+  vector<Value> r_values;
+  bool l_inclusive = false;
+  bool r_inclusive = false;
 
-    const Value &value = value_expr->get_value();
+  Index *index = table->find_index_by_fields(fields_name, comps, values, l_values, r_values, l_inclusive, r_inclusive);
+
+
+
+  if (index != nullptr) {
+    // ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
+    // TODO: 需要处理出索引扫描的区间
+
     IndexScanPhysicalOperator *index_scan_oper = new IndexScanPhysicalOperator(
           table, index, table_get_oper.readonly(), 
-          &value, true /*left_inclusive*/, 
-          &value, true /*right_inclusive*/);
+          l_values, l_inclusive /*left_inclusive*/, 
+          r_values, r_inclusive /*right_inclusive*/);
           
     index_scan_oper->set_predicates(std::move(predicates));
     oper = unique_ptr<PhysicalOperator>(index_scan_oper);
