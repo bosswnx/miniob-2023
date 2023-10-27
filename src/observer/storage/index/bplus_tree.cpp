@@ -753,17 +753,17 @@ RC BplusTreeHandler::sync()
   return disk_buffer_pool_->flush_all_pages();
 }
 
-RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_length, int internal_max_size /* = -1*/,
+RC BplusTreeHandler::create(const char *file_name, bool is_unique, AttrType attr_type, int attr_length, int internal_max_size /* = -1*/,
     int leaf_max_size /* = -1 */)
 {
   std::vector<AttrType> attr_types;
   attr_types.push_back(attr_type);
   std::vector<int> attr_lengths;
   attr_lengths.push_back(attr_length);
-  return create(file_name, attr_types, attr_lengths, internal_max_size, leaf_max_size);
+  return create(file_name, is_unique, attr_types, attr_lengths, internal_max_size, leaf_max_size);
 }
 
-RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &attr_types, const std::vector<int> &attr_lengths, int internal_max_size /* = -1*/,
+RC BplusTreeHandler::create(const char *file_name, bool is_unique, const std::vector<AttrType> &attr_types, const std::vector<int> &attr_lengths, int internal_max_size /* = -1*/,
     int leaf_max_size /* = -1 */)
 {
   BufferPoolManager &bpm = BufferPoolManager::instance();
@@ -816,6 +816,7 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &
   file_header->keys_length = attr_length + sizeof(RID);
   file_header->keys_num = attr_lengths.size();
   file_header->internal_max_size = internal_max_size;
+  file_header->is_unique = is_unique;
   file_header->leaf_max_size = leaf_max_size;
   file_header->root_page = BP_INVALID_PAGE_NUM;
 
@@ -1398,7 +1399,11 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &
     }
     offset += file_header_.attr_lengths[i];
   }
-  memcpy(static_cast<char *>(keys.get()) + offset, &rid, sizeof(rid));
+  if (file_header_.is_unique) {
+    memset(static_cast<char *>(keys.get()) + offset, 0, sizeof(rid));
+  } else {
+    memcpy(static_cast<char *>(keys.get()) + offset, &rid, sizeof(rid));
+  }
   return keys;
 }
 

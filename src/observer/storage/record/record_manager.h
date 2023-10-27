@@ -178,7 +178,7 @@ public:
    * @author Soulter
    * @date 2023/10/21
    */
-  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values);
+  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values, vector<Value> *old_values);
 
   /**
    * @brief 数据库恢复时，在指定位置插入数据
@@ -297,7 +297,7 @@ public:
    * @author Soulter
    * @date 2023/10/21
    */
-  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> values);
+  RC update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values, vector<Value> *old_values = nullptr);
 
    /**
    * @brief 数据库恢复时，在指定文件指定位置插入数据

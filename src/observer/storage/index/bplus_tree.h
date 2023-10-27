@@ -237,7 +237,7 @@ private:
   vector<AttrPrinter> attr_printers_;
 };
 
-const int MAX_KEY_NUM = (BP_PAGE_DATA_SIZE - sizeof(PageNum) - 4 * sizeof(int32_t)) / (sizeof(AttrType) + sizeof(int32_t));
+const int MAX_KEY_NUM = (BP_PAGE_DATA_SIZE - sizeof(PageNum) - 5 * sizeof(int32_t)) / (sizeof(AttrType) + sizeof(int32_t));
 
 /**
  * @brief the meta information of bplus tree
@@ -256,6 +256,7 @@ struct IndexFileHeader
   int32_t internal_max_size;  ///< 内部节点最大的键值对数
   int32_t leaf_max_size;      ///< 叶子节点最大的键值对数
   int32_t keys_length;         ///< attr length + sizeof(RID)
+  int is_unique;              ///< 是否唯一索引
   int keys_num;                ///< 键值的个数
   AttrType attr_types[MAX_KEY_NUM];
   int32_t attr_lengths[MAX_KEY_NUM];
@@ -505,11 +506,13 @@ public:
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
   RC create(const char *file_name, 
+            bool is_unique,
             AttrType attr_type, 
             int attr_length, 
             int internal_max_size = -1, 
             int leaf_max_size = -1);
   RC create(const char *file_name, 
+            bool is_unique,
             const std::vector<AttrType> &attr_types,
             const std::vector<int> &attr_lengths, 
             int internal_max_size = -1, 

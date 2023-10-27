@@ -213,7 +213,7 @@ RC RecordPageHandler::insert_record(const char *data, RID *rid)
   return RC::SUCCESS;
 }
 
-RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values)
+RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values, vector<Value> *old_values)
 {
   ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
 
@@ -230,6 +230,10 @@ RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
 
   char *record_data = get_record_data(rid->slot_num); // 获取原先记录的数据首地址
   for (int i = 0; i < field_metas.size(); i++) {
+    if (old_values != nullptr) {
+      (*old_values)[i].set_type(field_metas[i].type());
+      (*old_values)[i].set_data(record_data + field_metas[i].offset(), field_metas[i].len());
+    }
     memcpy(record_data + field_metas[i].offset(), values[i].data(), field_metas[i].len());
   }
   // memcpy(record_data, data, record_size);
@@ -438,7 +442,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   return record_page_handler.insert_record(data, rid);
 }
 
-RC RecordFileHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> values)
+RC RecordFileHandler::update_record(const RID *rid, const vector<FieldMeta> &field_metas, const vector<Value> &values, vector<Value> *old_values)
 {
   RC ret = RC::SUCCESS;
 
@@ -453,7 +457,7 @@ RC RecordFileHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
   }
   lock_.unlock();
 
-  return record_page_handler.update_record(rid, field_metas, values);
+  return record_page_handler.update_record(rid, field_metas, values, old_values);
 }
 
 
