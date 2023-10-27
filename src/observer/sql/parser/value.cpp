@@ -231,7 +231,7 @@ int Value::compare(const Value &other) const
     } else {
       other_value = other.num_value_.float_value_;
     }
-    return common::compare_float((void *)&this_value, (void *)&other.num_value_.float_value_);
+    return common::compare_float((void *)&this_value, (void *)&other_value);
   } else if ((this->attr_type_ == FLOATS && other.attr_type_ == CHARS) || (this->attr_type_ == INTS && other.attr_type_ == CHARS)) {
     float other_value = db_str_to_float(other.str_value_.c_str());
     float this_value;
