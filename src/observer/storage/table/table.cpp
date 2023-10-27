@@ -222,9 +222,10 @@ RC Table::insert_record(Record &record)
     return rc;
   }
 
-  rc = insert_entry_of_indexes(record.data(), record.rid());
+  int modified_index_num = 0;
+  rc = insert_entry_of_indexes(record.data(), record.rid(), modified_index_num);
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
-    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/);
+    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/, modified_index_num);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -493,26 +494,15 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> values) {
+RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values) {
   RC rc = RC::SUCCESS;
 
   // 删除索引
-  for (Index *index : indexes_) {
-    // rc = index->update_entry(&old_record.rid(), old_record.data())
-    rc = index->delete_entry(old_record.data(), &old_record.rid());
-    // if (rc != RC::SUCCESS) {
-    //   if (rc != RC::RECORD_INVALID_KEY) {
-    //     LOG_WARN("failed to update entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-    //              name(), index->index_meta().name(), old_record.rid().to_string().c_str(), strrc(rc));
-    //     return rc;
-    //   }
-    // }
-    ASSERT(RC::SUCCESS == rc, 
-           "[update index] failed to delete prev entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
-  }
+  delete_entry_of_indexes(old_record.data(), old_record.rid(), false);
 
-  rc = record_handler_->update_record(&old_record.rid(), field_metas, values);
+  vector<Value> old_values;
+  old_values.resize(values.size());
+  rc = record_handler_->update_record(&old_record.rid(), field_metas, values, &old_values);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
@@ -520,14 +510,15 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
 
   // 添加索引
   // 到这里之后，old_record中的 data 已经被修改了，可以直接传入
-  rc = insert_entry_of_indexes(old_record.data(), old_record.rid());
+  int modified_index_num = 0;
+  rc = insert_entry_of_indexes(old_record.data(), old_record.rid(), modified_index_num);
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
-    RC rc2 = delete_entry_of_indexes(old_record.data(), old_record.rid(), false/*error_on_not_exists*/);
+    RC rc2 = delete_entry_of_indexes(old_record.data(), old_record.rid(), false/*error_on_not_exists*/, modified_index_num);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
     }
-    rc2 = record_handler_->delete_record(&old_record.rid());
+    rc2 = record_handler_->update_record(&old_record.rid(), field_metas, old_values);
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -537,29 +528,40 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
   return rc;
 }
 
+RC Table::insert_entry_of_indexes(const char *record, const RID &rid) {
+  int num = 0;
+  return insert_entry_of_indexes(record, rid, num);
+}
 
-RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
+RC Table::insert_entry_of_indexes(const char *record, const RID &rid, int &num)
 {
+  num = 0;
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
     rc = index->insert_entry(record, &rid);
     if (rc != RC::SUCCESS) {
       break;
     }
+    num++;
   }
   return rc;
 }
 
-RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists)
+RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists, int num)
 {
+  int cnt = 0;
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
+    if (num >= 0 && cnt >= num) {
+      break;
+    }
     rc = index->delete_entry(record, &rid);
     if (rc != RC::SUCCESS) {
       if (rc != RC::RECORD_INVALID_KEY || !error_on_not_exists) {
         break;
       }
     }
+    cnt++;
   }
   return rc;
 }

@@ -89,7 +89,7 @@ public:
    */
   RC insert_record(Record &record);
   RC delete_record(const Record &record);
-  RC update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> values);
+  RC update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
 
@@ -115,7 +115,8 @@ public:
 
 private:
   RC insert_entry_of_indexes(const char *record, const RID &rid);
-  RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
+  RC insert_entry_of_indexes(const char *record, const RID &rid, int &num);
+  RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists, int num = -1);
   RC update_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists); // designing
 
 private:
