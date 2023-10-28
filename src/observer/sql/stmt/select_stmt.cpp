@@ -126,19 +126,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         query_fields.push_back(Field(table, field_meta));
         aggre_types.push_back(AggreType::CNTALL);
       } else {
-        auto table_meta = tables[0]->table_meta();
-        if (tables.size() > 1 || table_meta.field_num() > 1) {
-          LOG_WARN("too many fields in aggregation function.");
-          return RC::INVALID_ARGUMENT;
-        }
-        auto *table = tables[0];
-        auto *field_meta = table->table_meta().field(0);
-        if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
-          LOG_WARN("invalid aggregation function on DATES type.");
-          return RC::INVALID_ARGUMENT;
-        }
-        query_fields.push_back(Field(table, field_meta));
-        aggre_types.push_back(relation_attr.aggre_type);
+        LOG_WARN("invalid selection in aggregation function.");
+        return RC::INVALID_ARGUMENT;
       }
 
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
@@ -161,19 +150,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           query_fields.push_back(Field(table, field_meta));
           aggre_types.push_back(AggreType::CNT);
         } else {
-          auto table_meta = tables[0]->table_meta();
-          if (tables.size() > 1 || table_meta.field_num() > 1) {
-            LOG_WARN("too many fields in aggregation function.");
-            return RC::INVALID_ARGUMENT;
-          }
-          auto *table = tables[0];
-          auto *field_meta = table->table_meta().field(0);
-          if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
-            LOG_WARN("invalid aggregation function on DATES type.");
-            return RC::INVALID_ARGUMENT;
-          }
-          query_fields.push_back(Field(table, field_meta));
-          aggre_types.push_back(relation_attr.aggre_type);
+          LOG_WARN("invalid selection in aggregation function.");
+          return RC::INVALID_ARGUMENT;
         }
       } else {
         auto iter = table_map.find(table_name);
@@ -191,18 +169,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             query_fields.push_back(Field(table, field_meta));
             aggre_types.push_back(AggreType::CNT);
           } else {
-            auto table_meta = table->table_meta();
-            if (table_meta.field_num() > 1) {
-              LOG_WARN("too many fields in aggregation function.");
-              return RC::INVALID_ARGUMENT;
-            }
-            auto *field_meta = table->table_meta().field(0);
-            if ((field_meta->type() == CHARS || field_meta->type() == DATES) && relation_attr.aggre_type != AggreType::MAX && relation_attr.aggre_type != AggreType::MIN) {
-              LOG_WARN("invalid aggregation function on DATES type.");
-              return RC::INVALID_ARGUMENT;
-            }
-            query_fields.push_back(Field(table, field_meta));
-            aggre_types.push_back(relation_attr.aggre_type);
+            LOG_WARN("invalid selection in aggregation function.");
+            return RC::INVALID_ARGUMENT;
           }
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
