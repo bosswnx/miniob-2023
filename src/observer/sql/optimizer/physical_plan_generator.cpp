@@ -203,9 +203,37 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   }
 
   vector<unique_ptr<Expression>> &expressions = pred_oper.expressions();
+
   ASSERT(expressions.size() == 1, "predicate logical operator's children should be 1");
 
   unique_ptr<Expression> expression = std::move(expressions.front());
+
+
+  // 在这里，如果是子查询的Expr，先让其生成子查询的物理计划
+  if (expression->type() == ExprType::CONJUNCTION) {
+    // 转成 ConjunctionExpr
+    ConjunctionExpr &conjunction_expr = static_cast<ConjunctionExpr &>(*expression);
+    vector<unique_ptr<Expression>> &exprs = conjunction_expr.children();
+    for (auto &expr : exprs) {
+      if (expr->type() == ExprType::COMPARISON) {
+        // 转成 SubqueryExpr
+        ComparisonExpr &comparison_expr = static_cast<ComparisonExpr &>(*expr);
+        if (comparison_expr.left()->type() == ExprType::SUBQUERY) {
+          SubqueryExpr *subquery_expr = static_cast<SubqueryExpr *>(comparison_expr.left().get());
+          unique_ptr<PhysicalOperator> subquery_phy_oper = nullptr;
+          rc = create(*subquery_expr->logical_operator(), subquery_phy_oper);
+          subquery_expr->set_physical_operator(std::move(subquery_phy_oper));
+        }
+        if (comparison_expr.right()->type() == ExprType::SUBQUERY) {
+          SubqueryExpr *subquery_expr = static_cast<SubqueryExpr *>(comparison_expr.right().get());
+          unique_ptr<PhysicalOperator> subquery_phy_oper = nullptr;
+          rc = create(*subquery_expr->logical_operator(), subquery_phy_oper);
+          subquery_expr->set_physical_operator(std::move(subquery_phy_oper));
+        }
+      }
+    }
+  }
+
   oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
   oper->add_child(std::move(child_phy_oper));
   return rc;

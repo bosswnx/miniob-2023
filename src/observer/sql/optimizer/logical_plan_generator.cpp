@@ -37,6 +37,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/explain_stmt.h"
 #include <memory>
 
+#include "sql/expr/expression.h"
+
 using namespace std;
 
 RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical_operator)
@@ -151,13 +153,57 @@ RC LogicalPlanGenerator::create_plan(
     const FilterObj &filter_obj_left = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
 
-    unique_ptr<Expression> left(filter_obj_left.is_attr
-                                         ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-                                         : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    unique_ptr<Expression> left;
+    unique_ptr<Expression> right;
 
-    unique_ptr<Expression> right(filter_obj_right.is_attr
-                                          ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-                                          : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+    // unique_ptr<Expression> left(filter_obj_left.is_attr
+    //                                   ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
+    //                                   : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    if (filter_obj_left.is_attr) {
+      left = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_left.field)));
+    } else {
+      if (filter_obj_left.sub_select_stmt != nullptr) {
+        // 创建子查询的逻辑计划
+        // 这里说明目前子查询仅支持单表、单字段查询。如果有多表、多字段，这里默认取第一个。
+        const char* table_name = filter_obj_left.sub_select_stmt->tables()[0]->name();
+        const char* field_name = filter_obj_left.sub_select_stmt->query_fields()[0].field_name();
+        AttrType attr_type = filter_obj_left.sub_select_stmt->query_fields()[0].attr_type();
+        unique_ptr<LogicalOperator> sub_query_logical_oper = nullptr;
+        RC rc = create_plan(filter_obj_left.sub_select_stmt, sub_query_logical_oper);
+        if (rc != RC::SUCCESS) {
+          LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
+          return rc;
+        }
+        left = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
+      } else {
+        left = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+      }
+    }
+
+    // unique_ptr<Expression> right(filter_obj_right.is_attr
+    //                                       ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
+    //                                       : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+
+    if (filter_obj_right.is_attr) {
+      right = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_right.field)));
+    } else {
+      if (filter_obj_right.sub_select_stmt != nullptr) {
+        // 创建子查询的逻辑计划
+        // 这里说明目前子查询仅支持单表、单字段查询。如果有多表、多字段，这里默认取第一个。
+        const char* table_name = filter_obj_right.sub_select_stmt->tables()[0]->name();
+        const char* field_name = filter_obj_right.sub_select_stmt->query_fields()[0].field_name();
+        AttrType attr_type = filter_obj_right.sub_select_stmt->query_fields()[0].attr_type();
+        unique_ptr<LogicalOperator> sub_query_logical_oper = nullptr;
+        RC rc = create_plan(filter_obj_right.sub_select_stmt, sub_query_logical_oper);
+        if (rc != RC::SUCCESS) {
+          LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
+          return rc;
+        }
+        right = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
+      } else {
+        right = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+      }
+    }
 
     // 对条件进行比较（筛选）
     ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
@@ -166,6 +212,8 @@ RC LogicalPlanGenerator::create_plan(
 
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   // TODO: 这里只实现了 AND，还需要实现 OR
+
+  // 如果有多个比较条件，需要套上一个ConjunctionExpr。miniob 中暂时只支持 AND 关系
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));

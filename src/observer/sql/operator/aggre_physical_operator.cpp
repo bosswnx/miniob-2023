@@ -141,5 +141,6 @@ RC AggregationPhysicalOperator::next() {
 
 RC AggregationPhysicalOperator::close() {
   children_[0]->close();
+  finished_ = false;
   return RC::SUCCESS;
 }

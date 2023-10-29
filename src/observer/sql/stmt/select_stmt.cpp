@@ -39,7 +39,38 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
   }
 }
 
-RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
+RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select)
+{
+  // 当左子查询的属性不止一个时，报错（注意这里没有判断*，需要到后面的步骤判断）
+  if (sub_select->selection.attributes.size() != 1) {
+    LOG_WARN("invalid subquery attributes");
+    return RC::INVALID_ARGUMENT;
+  }
+  // 如果是*，需要先获得table，然后看其中的fields是不是1，如果不是，报错
+  if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].attribute_name == "*") {
+    int fields_num = 0;
+    for (size_t j = 0; j < sub_select->selection.relations.size(); ++j) {
+      const char *table_name = sub_select->selection.relations[j].c_str();
+      if (nullptr == table_name) {
+        LOG_WARN("invalid argument. relation name is null. index=%d", j);
+        return RC::INVALID_ARGUMENT;
+      }
+      Table *table = db->find_table(table_name);
+      if (nullptr == table) {
+        LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+      }
+      fields_num += table->table_meta().field_num();
+    }
+    if (fields_num != 1) {
+      LOG_WARN("invalid subquery attributes");
+      return RC::INVALID_ARGUMENT;
+    }
+  }
+  return RC::SUCCESS;
+}
+
+RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
@@ -49,6 +80,60 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   if (select_sql.attributes.empty()) {
     LOG_WARN("invalid argument. select attributes is empty");
     return RC::INVALID_ARGUMENT;
+  }
+
+
+  // 子查询，先检测conditions中是否有子查询condition，如果有，先为其转成stmt放在condition node中备用。
+  for (size_t i = 0; i < select_sql.conditions.size(); ++i) {
+    if (select_sql.conditions[i].sub_select != 0) {
+      if (select_sql.conditions[i].sub_select == 1) { // 1为左子查询
+        auto subquery = select_sql.conditions[i].left_sub_select;
+        if (subquery->flag != SCF_SELECT) {
+          LOG_WARN("invalid subquery type");
+          return RC::INVALID_ARGUMENT;
+        }
+        
+        RC rc_ = check_sub_select_legal(db, subquery);
+        if (rc_ != RC::SUCCESS) {
+          return rc_;
+        }
+
+        Stmt *subquery_stmt = nullptr;
+        // 生成左子查询的 stmt （如果有的话）
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot construct subquery stmt");
+          return rc;
+        }
+        // 类型转换为 SelectStmt
+        auto *subquery_select_stmt = dynamic_cast<SelectStmt *>(subquery_stmt);
+        select_sql.conditions[i].left_select_stmt = subquery_select_stmt;
+      }
+      if (select_sql.conditions[i].sub_select == 2) { // 2为右子查询
+        auto subquery = select_sql.conditions[i].right_sub_select;
+        if (subquery->flag != SCF_SELECT) {
+          LOG_WARN("invalid subquery type");
+          return RC::INVALID_ARGUMENT;
+        }
+
+        RC rc_ = check_sub_select_legal(db, subquery);
+        if (rc_ != RC::SUCCESS) {
+          return rc_;
+        }
+
+        Stmt *subquery_stmt = nullptr;
+        // 生成右子查询的 stmt （如果有的话）
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot construct subquery stmt");
+          return rc;
+        }
+        // 类型转换为 SelectStmt
+        auto *subquery_select_stmt = dynamic_cast<SelectStmt *>(subquery_stmt);
+        select_sql.conditions[i].right_select_stmt = subquery_select_stmt;
+      }
+    } 
+
   }
 
   // collect tables in `from` statement
@@ -226,7 +311,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   RC rc = FilterStmt::create(db,
       default_table,
       &table_map,
-      select_sql.conditions.data(),
+      select_sql.conditions.data(), // vector.data() 返回指向vector第一个元素的指针
       static_cast<int>(select_sql.conditions.size()),
       filter_stmt);
   if (rc != RC::SUCCESS) {

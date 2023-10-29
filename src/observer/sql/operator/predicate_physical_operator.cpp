@@ -30,6 +30,26 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     return RC::INTERNAL;
   }
 
+  //   // 如果有子查询表达式，则open子查询表达式中存的物理算子
+  // if (expression_->type() == ExprType::CONJUNCTION) {
+  //   // 转成 ConjunctionExpr
+  //   //  ConjunctionExpr &conjunction_expr = static_cast<ConjunctionExpr &>(*expression_); // static assertion failed: result type must be constructible from value type of input range
+  //   // ConjunctionExpr &conjunction_expr = static_cast<ConjunctionExpr &>(*expression_.get());
+  //   // auto exprs = conjunction_expr.children();
+  //   auto expr_tmp = std::move(expression_);
+  //   // ConjunctionExpr &conjunction_expr = static_cast<ConjunctionExpr &>(*expr_tmp.get());
+  //   ConjunctionExpr &conjunction_expr = static_cast<ConjunctionExpr &>(*expression_.get());
+  //   auto exprs = conjunction_expr.children();
+  //   for (auto &expr : exprs) {
+  //     if (expr->type() == ExprType::SUBQUERY) {
+  //       // 转成 SubqueryExpr
+  //       SubqueryExpr *subquery_expr = static_cast<SubqueryExpr *>(expr.get());
+  //       subquery_expr->physical_operator()->open(trx);
+  //     }
+  //   }
+  //   expression_ = std::move(expr_tmp);
+  // }
+
   return children_[0]->open(trx);
 }
 
@@ -37,7 +57,7 @@ RC PredicatePhysicalOperator::next()
 {
   RC rc = RC::SUCCESS;
   PhysicalOperator *oper = children_.front().get();
-  while (RC::SUCCESS == (rc = oper->next())) {
+  while (RC::SUCCESS == (rc = oper->next())) { // table scan operator 或者 join operator
     Tuple *tuple = oper->current_tuple();
     if (nullptr == tuple) {
       rc = RC::INTERNAL;
@@ -46,7 +66,7 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
-    rc = expression_->get_value(*tuple, value);
+    rc = expression_->get_value(*tuple, value); // comparator expression
     if (rc != RC::SUCCESS) {
       return rc;
     }
@@ -66,5 +86,5 @@ RC PredicatePhysicalOperator::close()
 
 Tuple *PredicatePhysicalOperator::current_tuple()
 {
-  return children_[0]->current_tuple();
+  return children_[0]->current_tuple(); // 返回的是 table scan operator 或者 join operator 的 tuple
 }

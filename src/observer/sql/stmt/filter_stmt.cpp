@@ -102,6 +102,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
   }
 
+  // 左 filterObj
   if (condition.left_is_attr) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
@@ -112,6 +113,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
+    filter_unit->set_left(filter_obj);
+  } else if (condition.sub_select == 1) {
+    FilterObj filter_obj;
+    filter_obj.init_sub_select_stmt(condition.left_select_stmt);
     filter_unit->set_left(filter_obj);
   } else {
     FilterObj filter_obj;
@@ -129,6 +134,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
+    filter_unit->set_right(filter_obj);
+  } else if (condition.sub_select == 2) {
+    FilterObj filter_obj;
+    filter_obj.init_sub_select_stmt(condition.right_select_stmt);
     filter_unit->set_right(filter_obj);
   } else {
     FilterObj filter_obj;

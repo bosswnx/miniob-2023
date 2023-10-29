@@ -22,8 +22,12 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "common/log/log.h"
 
-class Tuple;
 
+class LogicalOperator;
+class PhysicalOperator;
+class Trx;
+
+class Tuple;
 /**
  * @defgroup Expression
  * @brief 表达式
@@ -43,6 +47,7 @@ enum class ExprType
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
+  SUBQUERY,     ///< 子查询
 };
 
 /**
@@ -65,7 +70,7 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value) const = 0;
+  virtual RC get_value(const Tuple &tuple, Value &value) = 0;
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
@@ -98,6 +103,45 @@ private:
   std::string  name_;
 };
 
+
+/**
+ * @brief 子查询表达式
+*/
+class SubqueryExpr : public Expression
+{
+public:
+  SubqueryExpr(AttrType attr_type, const char *table_name, const char *field_name, std::unique_ptr<LogicalOperator> logical_operator);
+  virtual ~SubqueryExpr() = default;
+
+  ExprType type() const override { return ExprType::SUBQUERY; }
+  AttrType value_type() const override { return attr_type_; }
+
+  RC get_value(const Tuple &tuple, Value &value) override;
+
+  std::unique_ptr<LogicalOperator> &logical_operator() { return logical_operator_; }
+
+  std::unique_ptr<PhysicalOperator> &physical_operator() { return physical_operator_; }
+
+  RC set_physical_operator(std::unique_ptr<PhysicalOperator> physical_operator);
+
+  RC set_trx(Trx *trx);
+
+  RC open_physical_operator();
+
+  RC close_physical_operator();
+
+
+private:
+  AttrType attr_type_;
+  const char *table_name_;
+  const char *field_name_;
+  std::unique_ptr<LogicalOperator> logical_operator_;
+  std::unique_ptr<PhysicalOperator> physical_operator_;
+  Trx *trx_;
+  bool is_open_ = false;
+};
+
+
 /**
  * @brief 字段表达式
  * @ingroup Expression
@@ -124,7 +168,7 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
 
 private:
   Field field_;
@@ -143,7 +187,7 @@ public:
 
   virtual ~ValueExpr() = default;
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
   RC try_get_value(Value &value) const override { value = value_; return RC::SUCCESS; }
 
   ExprType type() const override { return ExprType::VALUE; }
@@ -172,7 +216,7 @@ public:
   {
     return ExprType::CAST;
   }
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
 
   RC try_get_value(Value &value) const override;
 
@@ -200,7 +244,7 @@ public:
 
   ExprType type() const override { return ExprType::COMPARISON; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -221,10 +265,13 @@ public:
    */
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
+  
 private:
   CompOp comp_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+  // 用于子查询与其他condition的“=”比较。这种情况下，如果为true则报错。只会统计“=”的情况。
+  bool has_sub_queried_ = false;
 };
 
 /**
@@ -249,7 +296,7 @@ public:
 
   AttrType value_type() const override { return BOOLEANS; }
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
 
   Type conjunction_type() const { return conjunction_type_; }
 
@@ -284,7 +331,7 @@ public:
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(const Tuple &tuple, Value &value) override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }

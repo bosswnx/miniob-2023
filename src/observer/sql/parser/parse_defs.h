@@ -18,10 +18,9 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 #include <string>
-
 #include "sql/parser/value.h"
-
 class Expression;
+class SelectStmt;
 
 /**
  * @defgroup SQLParser SQL Parser 
@@ -88,8 +87,14 @@ enum CompOp
   GREAT_THAN,   ///< ">"
   LIKE,         ///< "like"
   NOT_LIKE,     ///< "not like"
+  IN_,
+  NOT_IN,
   NO_OP,
 };
+
+
+// 其实就是 SelectSqlNode
+typedef struct ParsedSqlNode SubSelectSqlNode;
 
 /**
  * @brief 表示一个条件比较
@@ -110,6 +115,13 @@ struct ConditionSqlNode
                                    ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE。 当是 LIKE 时，这里肯定有值（yacc_sql.y 586L）
+
+  char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
+  SubSelectSqlNode*   left_sub_select; ///< left-hand side sub select
+  SubSelectSqlNode*   right_sub_select;///< right-hand side sub select
+  
+  SelectStmt*         left_select_stmt; ///< left-hand side select stmt
+  SelectStmt*         right_select_stmt;///< right-hand side select stmt
 };
 
 struct JoinSqlNode

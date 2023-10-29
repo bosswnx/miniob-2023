@@ -23,12 +23,14 @@ See the Mulan PSL v2 for more details. */
 class Db;
 class Table;
 class FieldMeta;
+class SelectStmt;
 
 struct FilterObj 
 {
   bool is_attr;
   Field field;
   Value value;
+  SelectStmt *sub_select_stmt = nullptr;
 
   void init_attr(const Field &field)
   {
@@ -40,6 +42,12 @@ struct FilterObj
   {
     is_attr = false;
     this->value = value;
+  }
+
+  void init_sub_select_stmt(SelectStmt *stmt)
+  {
+    is_attr = false;
+    sub_select_stmt = stmt;
   }
 };
 
