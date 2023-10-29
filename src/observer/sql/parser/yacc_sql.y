@@ -88,6 +88,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         WHERE
         IN
         NI // NOT_IN
+        EXISTS
+        NOT_EXISTS
         AND
         SET
         ON
@@ -829,10 +831,12 @@ sub_select_stmt:
 sub_select_stmt:
     LBRACE select_stmt RBRACE
     {
-      // in parse_defs.h:
-      // 其实就是 SelectSqlNode
-      // typedef struct SelectSqlNode SubSelectSqlNode;
       $$ = $2;
+    }
+    | LBRACE value value_list RBRACE
+    {
+      // select * from xx in (1, 2, 3) 的情况
+      // todo
     }
     ;
 
@@ -984,6 +988,15 @@ condition:
       $$->sub_select = 1;
       $$->comp = $2;
     }
+    | comp_op sub_select_stmt
+    {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->right_is_attr = 0;
+      $$->comp = $1;
+      $$->sub_select = $2;
+    }
     ;
 
 comp_op:
@@ -997,6 +1010,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | IN { $$ = IN_; }
     | NI { $$ = NOT_IN; }
+    | EXISTS { $$ = EXISTS_; }
+    | NOT_EXISTS { $$ = NOT_EXISTS_; }
     ;
 
 load_data_stmt:

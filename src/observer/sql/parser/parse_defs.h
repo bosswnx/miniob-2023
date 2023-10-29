@@ -89,6 +89,8 @@ enum CompOp
   NOT_LIKE,     ///< "not like"
   IN_,
   NOT_IN,
+  EXISTS_,
+  NOT_EXISTS_,
   NO_OP,
 };
 
@@ -319,6 +321,7 @@ enum SqlCommandFlag
   SCF_ERROR = 0,
   SCF_CALC,
   SCF_SELECT,
+  SCF_SOME_VALUES, // 用于子查询 select * from xx in (1, 2, 3) 的情况
   SCF_INSERT,
   SCF_UPDATE,
   SCF_DELETE,

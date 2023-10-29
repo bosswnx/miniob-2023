@@ -92,6 +92,8 @@ TABLE                                   RETURN_TOKEN(TABLE);
 TABLES                                  RETURN_TOKEN(TABLES);
 IN                                      RETURN_TOKEN(IN);
 "NOT IN"                                RETURN_TOKEN(NI);
+EXISTS                                  RETURN_TOKEN(EXISTS);
+"NOT EXISTS"                            RETURN_TOKEN(NOT_EXISTS);
 INDEX                                   RETURN_TOKEN(INDEX);
 ON                                      RETURN_TOKEN(ON);
 SHOW                                    RETURN_TOKEN(SHOW);
