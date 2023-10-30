@@ -88,10 +88,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     if (select_sql.conditions[i].sub_select != 0) {
       if (select_sql.conditions[i].sub_select == 1) { // 1为左子查询
         auto subquery = select_sql.conditions[i].left_sub_select;
-        if (subquery->flag != SCF_SELECT) {
+        if (subquery->flag != SCF_SELECT && subquery->flag != SCF_SOME_VALUES) {
           LOG_WARN("invalid subquery type");
           return RC::INVALID_ARGUMENT;
         }
+        if (subquery->flag == SCF_SOME_VALUES) break; // 如果子查询是 SOME VALUES，不需要生成 stmt
         
         RC rc_ = check_sub_select_legal(db, subquery);
         if (rc_ != RC::SUCCESS) {
@@ -111,10 +112,12 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
       }
       if (select_sql.conditions[i].sub_select == 2) { // 2为右子查询
         auto subquery = select_sql.conditions[i].right_sub_select;
-        if (subquery->flag != SCF_SELECT) {
+        if (subquery->flag != SCF_SELECT && subquery->flag != SCF_SOME_VALUES) {
           LOG_WARN("invalid subquery type");
           return RC::INVALID_ARGUMENT;
         }
+
+        if (subquery->flag == SCF_SOME_VALUES) break; // 如果子查询是 SOME VALUES，不需要生成 stmt
 
         RC rc_ = check_sub_select_legal(db, subquery);
         if (rc_ != RC::SUCCESS) {

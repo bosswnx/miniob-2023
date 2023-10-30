@@ -836,7 +836,14 @@ sub_select_stmt:
     | LBRACE value value_list RBRACE
     {
       // select * from xx in (1, 2, 3) 的情况
-      // todo
+      $$ = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($3 != nullptr) {
+        $$->some_values.values.swap(*$3);
+        delete $3;
+      }
+      $$->some_values.values.emplace_back(*$2);
+      std::reverse($$->some_values.values.begin(), $$->some_values.values.end());
+      delete $2;
     }
     ;
 
@@ -995,7 +1002,8 @@ condition:
       $$->left_is_attr = 0;
       $$->right_is_attr = 0;
       $$->comp = $1;
-      $$->sub_select = $2;
+      $$->right_sub_select = $2;
+      $$->sub_select = 2;
     }
     ;
 

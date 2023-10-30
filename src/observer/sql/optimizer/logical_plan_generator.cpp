@@ -175,6 +175,9 @@ RC LogicalPlanGenerator::create_plan(
           return rc;
         }
         left = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
+      } else if (filter_obj_left.values != nullptr) {
+        // 特殊子查询，IN (1, 2, 3)
+        left = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_left.values)));
       } else {
         left = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
       }
@@ -188,7 +191,7 @@ RC LogicalPlanGenerator::create_plan(
       right = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_right.field)));
     } else {
       if (filter_obj_right.sub_select_stmt != nullptr) {
-        // 创建子查询的逻辑计划
+        // 创建普通select子查询的逻辑计划
         // 这里说明目前子查询仅支持单表、单字段查询。如果有多表、多字段，这里默认取第一个。
         const char* table_name = filter_obj_right.sub_select_stmt->tables()[0]->name();
         const char* field_name = filter_obj_right.sub_select_stmt->query_fields()[0].field_name();
@@ -200,6 +203,9 @@ RC LogicalPlanGenerator::create_plan(
           return rc;
         }
         right = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
+      } else if (filter_obj_right.values != nullptr) {
+        // 特殊子查询，IN (1, 2, 3)
+        right = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_right.values)));
       } else {
         right = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
       }

@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
+#include "storage/index/index.h"
 
 class LogicalOperator;
 class PhysicalOperator;
@@ -32,6 +33,16 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value)
 RC ValueExpr::get_value(const Tuple &tuple, Value &value)
 {
   value = value_;
+  return RC::SUCCESS;
+}
+
+RC ValueListExpr::get_value(const Tuple &tuple, Value &value)
+{
+  if (index_ >= values_.size()) {
+    index_ = 0;
+    return RC::RECORD_EOF;
+  }
+  value = values_[index_++];
   return RC::SUCCESS;
 }
 
@@ -311,8 +322,93 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
         break;
       }
 
-      // 当comp_为=或者<>时，子查询的结果只能是一个值
-      if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
+      if (comp_ == CompOp::EXISTS_) {
+        // 当comp_为EXISTS时，直接返回true
+        value.set_boolean(true);
+        break;
+      } else if (comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(false);
+        break;
+      } else if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
+        // 当comp_为=或者<>时，子查询的结果只能是一个值
+        if (has_sub_queried_) {
+          has_sub_queried_ = false; // 良好的习惯，重置
+          rc = RC::INVALID_ARGUMENT;
+          break;
+        } else {
+          has_sub_queried_ = true;
+        }
+      }
+
+      rc = compare_value(left_value, right_value, bool_value);
+
+      // 当CompOp不是NOT_IN时，只要找到一个满足条件的值就可以返回
+      // 当CompOp是NOT_IN时，必须得遍历完所有的值才能知道
+      if (rc == RC::SUCCESS && comp_ != CompOp::NOT_IN && bool_value ) {
+        value.set_boolean(bool_value);
+        break;
+      } else if (rc == RC::SUCCESS && comp_ == CompOp::NOT_IN && !bool_value) {
+        // 当CompOp==NOT_IN，且左右value相等（因为是NOTIN，所以bool_value前要加!），直接结束循环
+        value.set_boolean(bool_value);
+        break;
+      }
+      
+    }
+
+    if (rc == RC::INVALID_ARGUMENT) return rc;
+
+    // NOT_IN 判断
+    if (rc == RC::RECORD_EOF) {
+      if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(true);
+        rc = RC::SUCCESS;
+        return rc;
+      }
+    }
+    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    }
+    // 关闭算子
+    // 可优化 static_cast 潜在的开销
+    rc = subquery_expr->close_physical_operator();
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+    }
+  } else if (left_->type() == ExprType::VALUES || right_->type() == ExprType::VALUES) {
+    ValueListExpr *value_list_expr;
+    Value* value_list_value;
+    if (left_->type() == ExprType::VALUES) {
+      value_list_expr = static_cast<ValueListExpr *>(left_.get());
+      rc = right_->get_value(tuple, right_value); // 假设右边不是value list
+      value_list_value = &left_value;
+    } else {
+      value_list_expr = static_cast<ValueListExpr *>(right_.get());
+      rc = left_->get_value(tuple, left_value); // 假设左边不是value list
+      value_list_value = &right_value;
+    }
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+
+    bool bool_value = false;
+
+    // 循环next子查询的算子，直到找到一个满足条件的值
+    while((rc = value_list_expr->get_value(tuple, *value_list_value)) == RC::SUCCESS) {
+      if (value_list_value->attr_type() == UNDEFINED) {
+        rc = RC::RECORD_EOF; // maybe wrong
+        break;
+      }
+
+      if (comp_ == CompOp::EXISTS_) {
+        // 当comp_为EXISTS时，直接返回true
+        value.set_boolean(true);
+        break;
+      } else if (comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(false);
+        break;
+      } else if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
+        // 当comp_为=或者<>时，子查询的结果只能是一个值
         if (has_sub_queried_) {
           has_sub_queried_ = false; // 良好的习惯，重置
           rc = RC::INVALID_ARGUMENT;
@@ -340,9 +436,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
     if (rc == RC::INVALID_ARGUMENT) return rc;
 
     // NOT_IN 判断
-    
     if (rc == RC::RECORD_EOF) {
-      if (comp_ == CompOp::NOT_IN) {
+      if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
         value.set_boolean(true);
         rc = RC::SUCCESS;
         return rc;
@@ -352,13 +447,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     }
 
+    value_list_expr->set_index(0); // 重置index
 
-    // 关闭算子
-    // 可优化 static_cast 潜在的开销
-    rc = subquery_expr->close_physical_operator();
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
-    }
   } else {
     rc = left_->get_value(tuple, left_value);
     if (rc != RC::SUCCESS) {

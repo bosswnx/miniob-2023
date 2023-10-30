@@ -312,6 +312,10 @@ struct ErrorSqlNode
   int         column;
 };
 
+struct SomeValuesSqlNode {
+  std::vector<Value> values;
+};
+
 /**
  * @brief 表示一个SQL语句的类型
  * @ingroup SQLParser
@@ -353,6 +357,7 @@ public:
   ErrorSqlNode              error;
   CalcSqlNode               calc;
   SelectSqlNode             selection;
+  SomeValuesSqlNode         some_values;
   InsertSqlNode             insertion;
   DeleteSqlNode             deletion;
   UpdateSqlNode             update;

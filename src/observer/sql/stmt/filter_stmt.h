@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 #include <unordered_map>
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
 #include "sql/expr/expression.h"
 
@@ -31,6 +32,7 @@ struct FilterObj
   Field field;
   Value value;
   SelectStmt *sub_select_stmt = nullptr;
+  std::vector<Value> *values = nullptr;
 
   void init_attr(const Field &field)
   {
@@ -48,6 +50,12 @@ struct FilterObj
   {
     is_attr = false;
     sub_select_stmt = stmt;
+  }
+
+  void init_values(std::vector<Value> *values)
+  {
+    is_attr = false;
+    this->values = values;
   }
 };
 
