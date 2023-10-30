@@ -122,6 +122,7 @@ DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
+AS                                      RETURN_TOKEN(AS);
 
 MAX                                     RETURN_TOKEN(MAX);
 MIN                                     RETURN_TOKEN(MIN);

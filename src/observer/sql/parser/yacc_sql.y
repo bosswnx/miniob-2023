@@ -98,6 +98,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INFILE
         EXPLAIN
         UNIQUE
+        AS
         EQ
         LT
         GT
@@ -120,6 +121,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                           value;
   enum CompOp                       comp;
   RelAttrSqlNode *                  rel_attr;
+  RelationSqlNode *                 relation;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
@@ -127,7 +129,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
+  std::vector<RelationSqlNode> *    relation_list;
+  std::vector<std::string> *        ID_list;
   std::vector<JoinSqlNode> *        join_list;
   UpdateSqlNode *                   update_info;
   char *                            string;
@@ -150,6 +153,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              number
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
+%type <relation>            relation
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
@@ -157,7 +161,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
-%type <relation_list>       ID_list
+%type <ID_list>             ID_list
 %type <rel_attr_list>       aggre_attr
 %type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
@@ -511,7 +515,7 @@ update_value_list:
     };
 
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
-    SELECT select_attr FROM ID rel_list join_list where
+    SELECT select_attr FROM relation rel_list join_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -522,7 +526,7 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(*$4);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       if ($6 != nullptr) {
         /* $$->selection.joins.swap(*$6); */
@@ -530,7 +534,7 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         /* 先 reverse 一下 */
         std::reverse($6->begin(), $6->end());
         for (auto &join : *$6) {
-          $$->selection.relations.push_back(join.relation_name);
+          $$->selection.relations.push_back(join.relation);
           for (auto &condition : join.conditions) {
             $$->selection.conditions.emplace_back(condition);
           }
@@ -546,7 +550,7 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         std::reverse($$->selection.conditions.begin(), $$->selection.conditions.end());
         /* delete $7; */
       }
-      free($4);
+      delete $4;
     }
     ;
 calc_stmt:
@@ -724,6 +728,24 @@ rel_attr:
       $$->aggre_type = AggreType::NONE;
       free($1);
     }
+    | ID AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name = "";
+      $$->attribute_name = $1;
+      $$->alias = $3;
+      $$->aggre_type = AggreType::NONE;
+      free($1);
+      free($3);
+    }
+    | ID ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name = "";
+      $$->attribute_name = $1;
+      $$->alias = $2;
+      $$->aggre_type = AggreType::NONE;
+      free($1);
+      free($2);
+    }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
@@ -732,11 +754,69 @@ rel_attr:
       free($1);
       free($3);
     }
+    | ID DOT ID AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $5;
+      $$->aggre_type = AggreType::NONE;
+      free($1);
+      free($3);
+      free($5);
+    }
+    | ID DOT ID ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $4;
+      $$->aggre_type = AggreType::NONE;
+      free($1);
+      free($3);
+      free($4);
+    }
     | '*' {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = "";
       $$->attribute_name = "*";
       $$->aggre_type = AggreType::NONE;
+    }
+    | '*' AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = "";
+      $$->attribute_name = "*";
+      $$->alias = $3;
+      $$->aggre_type = AggreType::NONE;
+      free($3);
+    }
+    | '*' ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = "";
+      $$->attribute_name = "*";
+      $$->alias = $2;
+      $$->aggre_type = AggreType::NONE;
+      free($2);
+    }
+    ;
+
+relation:
+    ID {
+      $$ = new RelationSqlNode;
+      $$->name = $1;
+      free($1);
+    }
+    | ID AS ID {
+      $$ = new RelationSqlNode;
+      $$->name = $1;
+      $$->alias = $3;
+      free($1);
+      free($3);
+    }
+    | ID ID {
+      $$ = new RelationSqlNode;
+      $$->name = $1;
+      $$->alias = $2;
+      free($1);
+      free($2);
     }
     ;
 
@@ -762,14 +842,14 @@ rel_list:
     {
       $$ = nullptr;
     }
-    | COMMA ID rel_list {
+    | COMMA relation rel_list {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<std::string>;
+        $$ = new std::vector<RelationSqlNode>;
       }
 
-      $$->push_back($2);
+      $$->emplace_back(*$2);
       free($2);
     }
     ;
@@ -787,7 +867,7 @@ join_list:
     {
       $$ = nullptr;
     }
-    | INNER_JOIN ID ON condition_list join_list {
+    | INNER_JOIN relation ON condition_list join_list {
       if ($5 != nullptr) {
         $$ = $5;
       } else {
@@ -795,7 +875,8 @@ join_list:
       }
 
       JoinSqlNode join1;
-      join1.relation_name = $2;
+      join1.relation = *$2;
+      delete $2;
       /*join1.conditions.swap(*$4); */
       /*join1.conditions.emplace_back(*$4); */
       // reverse
