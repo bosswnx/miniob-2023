@@ -86,6 +86,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         INNER_JOIN
         WHERE
+        IN
+        NI // NOT_IN
+        EXISTS
+        NOT_EXISTS
         AND
         SET
         ON
@@ -106,7 +110,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         CNT
         AVG
         LK
-        NLK
+        NLK // NOT_LIKE
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -163,6 +167,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <update_info>         update_value_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
+%type <sql_node>            sub_select_stmt
 %type <sql_node>            insert_stmt
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
@@ -200,6 +205,7 @@ commands: command_wrapper opt_semicolon  //commands or sqls. parser starts here.
 command_wrapper:
     calc_stmt
   | select_stmt
+  | sub_select_stmt
   | insert_stmt
   | update_stmt
   | delete_stmt
@@ -536,6 +542,8 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         for (auto &condition : *$7) {
           $$->selection.conditions.emplace_back(condition);
         }
+        // reverse
+        std::reverse($$->selection.conditions.begin(), $$->selection.conditions.end());
         /* delete $7; */
       }
       free($4);
@@ -801,6 +809,46 @@ join_list:
     }
     ;
 
+/*
+sub_select_stmt:
+    LBRACE SELECT select_attr FROM ID rel_list where RBRACE
+    {
+      // in parse_defs.h:
+      // 其实就是 SelectSqlNode
+      // typedef struct SelectSqlNode SubSelectSqlNode;
+      $$ = new SubSelectSqlNode;
+      // $$->relations.swap(*$4);
+      $$->relations.swap(*$6);
+      $$->relations.push_back($5);
+      std::reverse($$->relations.begin(), $$->relations.end());
+      $$->attributes.swap(*$3);
+      $$->conditions.swap(*$5);
+      delete $3;
+      delete $5;
+      free($5); 
+    }
+    ;
+*/
+
+sub_select_stmt:
+    LBRACE select_stmt RBRACE
+    {
+      $$ = $2;
+    }
+    | LBRACE value value_list RBRACE
+    {
+      // select * from xx in (1, 2, 3) 的情况
+      $$ = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($3 != nullptr) {
+        $$->some_values.values.swap(*$3);
+        delete $3;
+      }
+      $$->some_values.values.emplace_back(*$2);
+      std::reverse($$->some_values.values.begin(), $$->some_values.values.end());
+      delete $2;
+    }
+    ;
+
 
 where:
     /* empty */
@@ -856,6 +904,7 @@ condition:
       $$->right_is_attr = 0;
       $$->right_value = *$3;
       $$->comp = $2;
+      $$->sub_select = 0;
 
       delete $1;
       delete $3;
@@ -868,6 +917,7 @@ condition:
       $$->right_is_attr = 0;
       $$->right_value = *$3;
       $$->comp = $2;
+      $$->sub_select = 0;
 
       delete $1;
       delete $3;
@@ -880,6 +930,7 @@ condition:
       $$->right_is_attr = 1;
       $$->right_attr = *$3;
       $$->comp = $2;
+      $$->sub_select = 0;
 
       delete $1;
       delete $3;
@@ -892,9 +943,69 @@ condition:
       $$->right_is_attr = 1;
       $$->right_attr = *$3;
       $$->comp = $2;
+      $$->sub_select = 0;
 
       delete $1;
       delete $3;
+    }
+    | value comp_op sub_select_stmt
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      //$$->right_value = nullptr;
+      //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
+      $$->right_sub_select = $3;
+      //  char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
+      $$->sub_select = 2;
+      $$->comp = $2;
+    }
+    | rel_attr comp_op sub_select_stmt
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->right_is_attr = 0;
+      //$$->right_value = nullptr;
+      //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
+      $$->right_sub_select = $3;
+      $$->sub_select = 2;
+      $$->comp = $2;
+    }
+    | sub_select_stmt comp_op value
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      //$$->left_value = nullptr;
+      //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
+      $$->left_sub_select = $1;
+      $$->right_is_attr = 0;
+      $$->right_value = *$3;
+      $$->sub_select = 1;
+      $$->comp = $2;
+    }
+    | sub_select_stmt comp_op rel_attr
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      //$$->left_value = nullptr;
+      //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
+      $$->left_sub_select = $1;
+      $$->right_is_attr = 1;
+      $$->right_attr = *$3;
+      $$->sub_select = 1;
+      $$->comp = $2;
+    }
+    | comp_op sub_select_stmt
+    {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->right_is_attr = 0;
+      $$->comp = $1;
+      $$->right_sub_select = $2;
+      $$->sub_select = 2;
     }
     ;
 
@@ -907,6 +1018,10 @@ comp_op:
     | LK { $$ = LIKE; }
     | NLK { $$ = NOT_LIKE; }
     | NE { $$ = NOT_EQUAL; }
+    | IN { $$ = IN_; }
+    | NI { $$ = NOT_IN; }
+    | EXISTS { $$ = EXISTS_; }
+    | NOT_EXISTS { $$ = NOT_EXISTS_; }
     ;
 
 load_data_stmt:

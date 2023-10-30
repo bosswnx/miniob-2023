@@ -14,17 +14,35 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/physical_operator.h"
+#include "sql/operator/logical_operator.h"
+#include "storage/index/index.h"
+
+class LogicalOperator;
+class PhysicalOperator;
+class Trx;
+
 
 using namespace std;
 
-RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
+RC FieldExpr::get_value(const Tuple &tuple, Value &value)
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
-RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
+RC ValueExpr::get_value(const Tuple &tuple, Value &value)
 {
   value = value_;
+  return RC::SUCCESS;
+}
+
+RC ValueListExpr::get_value(const Tuple &tuple, Value &value)
+{
+  if (index_ >= values_.size()) {
+    index_ = 0;
+    return RC::RECORD_EOF;
+  }
+  value = values_[index_++];
   return RC::SUCCESS;
 }
 
@@ -57,7 +75,7 @@ RC CastExpr::cast(const Value &value, Value &cast_value) const
   return rc;
 }
 
-RC CastExpr::get_value(const Tuple &tuple, Value &cell) const
+RC CastExpr::get_value(const Tuple &tuple, Value &cell)
 {
   RC rc = child_->get_value(tuple, cell);
   if (rc != RC::SUCCESS) {
@@ -77,6 +95,116 @@ RC CastExpr::try_get_value(Value &value) const
   return cast(value, value);
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+SubqueryExpr::SubqueryExpr(AttrType attr_type, const char *table_name, const char *field_name, unique_ptr<LogicalOperator> logical_operator)
+    : attr_type_(attr_type), table_name_(table_name), field_name_(field_name), logical_operator_(std::move(logical_operator))
+{}
+
+RC SubqueryExpr::get_value(const Tuple &tuple, Value &value)
+{
+  RC rc = RC::SUCCESS;
+  if (physical_operator_ == nullptr) {
+    LOG_WARN("physical operator is null");
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (!is_open_) {
+    rc = open_physical_operator();
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to open physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+
+  // 查询子查询的结果，写入value中
+  rc = physical_operator_->next();
+  if (rc != RC::SUCCESS) {
+    // maybe we reach the end of the result
+    if (rc != RC::RECORD_EOF) {
+      LOG_PANIC("failed to get next tuple. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = close_physical_operator();
+    if (rc == RC::SUCCESS) {
+      rc = RC::RECORD_EOF;
+    } else {
+      LOG_PANIC("failed to close physical operator. rc=%s", strrc(rc));
+    }
+    return rc;
+  }
+  Tuple *another_tuple = physical_operator_->current_tuple();
+  // if(another_tuple->type() == TupleType::VALUE_LIST) {
+  //   if (another_tuple->cell_num() == 0) {
+  //     LOG_WARN("value list tuple cell count is not 1");
+  //     return RC::INTERNAL;
+  //   }
+  //   // ⚠：取第一个
+  //   another_tuple->cell_at(0, value);
+  //   // UNDEFINED 表示没有匹配的值
+  //   if (value.attr_type() == AttrType::UNDEFINED) {
+  //     rc = RC::RECORD_EOF;
+  //   }
+  // } else {
+  //   if (another_tuple->cell_num() != 1) {
+  //     LOG_WARN("tuple cell count is not 1");
+  //     return RC::INTERNAL;
+  //   }
+  //   rc = another_tuple->find_cell(TupleCellSpec(table_name_, field_name_), value);
+  //   if (rc != RC::SUCCESS) {
+  //     LOG_WARN("failed to find cell. rc=%s", strrc(rc));
+  //     return rc;
+  //   }
+  // }
+  if (another_tuple->cell_num() != 1) {
+    LOG_WARN("tuple cell count is not 1");
+    return RC::INVALID_ARGUMENT;
+  }
+  another_tuple->cell_at(0, value);
+  return rc;
+}
+
+RC SubqueryExpr::set_physical_operator(unique_ptr<PhysicalOperator> physical_operator)
+{
+  physical_operator_ = std::move(physical_operator);
+  return RC::SUCCESS;
+}
+
+RC SubqueryExpr::set_trx(Trx *trx)
+{
+  trx_ = trx;
+  return RC::SUCCESS;
+}
+
+RC SubqueryExpr::open_physical_operator()
+{
+  if (physical_operator_ == nullptr) {
+    LOG_WARN("physical operator is null");
+    return RC::INVALID_ARGUMENT;
+  }
+  RC rc = physical_operator_->open(trx_);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to open physical operator. rc=%s", strrc(rc));
+  } else {
+    is_open_ = true;
+  }
+  return rc;
+}
+
+RC SubqueryExpr::close_physical_operator()
+{
+  if (physical_operator_ == nullptr) {
+    LOG_WARN("physical operator is null");
+    return RC::INVALID_ARGUMENT;
+  }
+  RC rc = physical_operator_->close();
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+  } else {
+    is_open_ = false;
+  }
+  return rc;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_ptr<Expression> right)
@@ -108,12 +236,14 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   }
   int cmp_result = left.compare(right);
   switch (comp_) {
+    case IN_:
     case EQUAL_TO: {
       result = (0 == cmp_result);
     } break;
     case LESS_EQUAL: {
       result = (cmp_result <= 0);
     } break;
+    case NOT_IN:
     case NOT_EQUAL: {
       result = (cmp_result != 0);
     } break;
@@ -156,27 +286,198 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
-RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
+RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 {
   Value left_value;
   Value right_value;
+  RC rc;
 
-  RC rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
+  if (left_->type() == ExprType::SUBQUERY && right_->type() == ExprType::SUBQUERY) {
+    LOG_WARN("not support subquery in both side of comparison");
+    return RC::INVALID_ARGUMENT;
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
-  }
+  
+  if (left_->type() == ExprType::SUBQUERY || right_->type() == ExprType::SUBQUERY) {
+    SubqueryExpr *subquery_expr;
+    Value* sub_query_value;
+    if (left_->type() == ExprType::SUBQUERY) {
+      subquery_expr = static_cast<SubqueryExpr *>(left_.get());
+      rc = right_->get_value(tuple, right_value); // 假设右边不是子查询
+      sub_query_value = &left_value;
+    } else {
+      subquery_expr = static_cast<SubqueryExpr *>(right_.get());
+      rc = left_->get_value(tuple, left_value); // 假设左边不是子查询
+      sub_query_value = &right_value;
+    }
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
 
-  bool bool_value = false;
-  rc = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    value.set_boolean(bool_value);
+    bool bool_value = false;
+    // 循环next子查询的算子，直到找到一个满足条件的值
+    while((rc = subquery_expr->get_value(tuple, *sub_query_value)) == RC::SUCCESS) {
+      if (sub_query_value->attr_type() == UNDEFINED) {
+        rc = RC::RECORD_EOF; // maybe wrong
+        break;
+      }
+
+      if (comp_ == CompOp::EXISTS_) {
+        // 当comp_为EXISTS时，直接返回true
+        value.set_boolean(true);
+        break;
+      } else if (comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(false);
+        break;
+      } else if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
+        // 当comp_为=或者<>时，子查询的结果只能是一个值
+        if (has_sub_queried_) {
+          has_sub_queried_ = false; // 良好的习惯，重置
+          rc = RC::INVALID_ARGUMENT;
+          break;
+        } else {
+          has_sub_queried_ = true;
+        }
+      }
+
+      rc = compare_value(left_value, right_value, bool_value);
+
+      // 当CompOp不是NOT_IN时，只要找到一个满足条件的值就可以返回
+      // 当CompOp是NOT_IN时，必须得遍历完所有的值才能知道
+      if (rc == RC::SUCCESS && comp_ != CompOp::NOT_IN && bool_value ) {
+        value.set_boolean(bool_value);
+        break;
+      } else if (rc == RC::SUCCESS && comp_ == CompOp::NOT_IN && !bool_value) {
+        // 当CompOp==NOT_IN，且左右value相等（因为是NOTIN，所以bool_value前要加!），直接结束循环
+        value.set_boolean(bool_value);
+        break;
+      }
+      
+    }
+
+    if (rc == RC::INVALID_ARGUMENT) return rc;
+
+    // EOF 判断
+    if (rc == RC::RECORD_EOF) {
+      if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(true);
+        rc = RC::SUCCESS;
+        return rc;
+      } else if (comp_ == CompOp::IN_ || comp_ == CompOp::EXISTS_) {
+        value.set_boolean(false);
+        rc = RC::SUCCESS;
+        return rc;
+      }
+    }
+    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    }
+    // 关闭算子
+    // 可优化 static_cast 潜在的开销
+    rc = subquery_expr->close_physical_operator();
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+    }
+  } else if (left_->type() == ExprType::VALUES || right_->type() == ExprType::VALUES) {
+    ValueListExpr *value_list_expr;
+    Value* value_list_value;
+    if (left_->type() == ExprType::VALUES) {
+      value_list_expr = static_cast<ValueListExpr *>(left_.get());
+      rc = right_->get_value(tuple, right_value); // 假设右边不是value list
+      value_list_value = &left_value;
+    } else {
+      value_list_expr = static_cast<ValueListExpr *>(right_.get());
+      rc = left_->get_value(tuple, left_value); // 假设左边不是value list
+      value_list_value = &right_value;
+    }
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+
+    bool bool_value = false;
+
+    // 循环next子查询的算子，直到找到一个满足条件的值
+    while((rc = value_list_expr->get_value(tuple, *value_list_value)) == RC::SUCCESS) {
+      if (value_list_value->attr_type() == UNDEFINED) {
+        rc = RC::RECORD_EOF; // maybe wrong
+        break;
+      }
+
+      if (comp_ == CompOp::EXISTS_) {
+        // 当comp_为EXISTS时，直接返回true
+        value.set_boolean(true);
+        break;
+      } else if (comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(false);
+        break;
+      } else if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
+        // 当comp_为=或者<>时，子查询的结果只能是一个值
+        if (has_sub_queried_) {
+          has_sub_queried_ = false; // 良好的习惯，重置
+          rc = RC::INVALID_ARGUMENT;
+          break;
+        } else {
+          has_sub_queried_ = true;
+        }
+      }
+      
+      rc = compare_value(left_value, right_value, bool_value);
+
+      // 当CompOp不是NOT_IN时，只要找到一个满足条件的值就可以返回
+      // 当CompOp是NOT_IN时，必须得遍历完所有的值才能知道
+      if (rc == RC::SUCCESS && comp_ != CompOp::NOT_IN && bool_value ) {
+        value.set_boolean(bool_value);
+        break;
+      } else if (rc == RC::SUCCESS && comp_ == CompOp::NOT_IN && !bool_value) {
+        // 当CompOp==NOT_IN，且左右value相等（因为是NOTIN，所以bool_value前要加!），直接结束循环
+        value.set_boolean(bool_value);
+        break;
+      }
+      
+    }
+
+    if (rc == RC::INVALID_ARGUMENT) return rc;
+
+    // EOF判断
+    if (rc == RC::RECORD_EOF) {
+      if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
+        value.set_boolean(true);
+        rc = RC::SUCCESS;
+        return rc;
+      } else if (comp_ == CompOp::IN_ || comp_ == CompOp::EXISTS_) {
+        value.set_boolean(false);
+        rc = RC::SUCCESS;
+        return rc;
+      }
+    }
+    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+    }
+
+    value_list_expr->set_index(0); // 重置index
+
+  } else {
+    rc = left_->get_value(tuple, left_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    bool bool_value = false;
+    rc = compare_value(left_value, right_value, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
   }
+  if (rc == RC::RECORD_EOF) {
+    rc = RC::SUCCESS;
+  }
+  has_sub_queried_ = false;
   return rc;
 }
 
@@ -185,7 +486,7 @@ ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &chil
     : conjunction_type_(type), children_(std::move(children))
 {}
 
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
+RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -301,7 +602,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   return rc;
 }
 
-RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
+RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
 

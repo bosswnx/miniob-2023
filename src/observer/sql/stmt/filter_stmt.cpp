@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "sql/parser/value.h"
 #include "storage/db/db.h"
@@ -102,6 +103,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     }
   }
 
+  // 左 filterObj
   if (condition.left_is_attr) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
@@ -113,6 +115,19 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
+  } else if (condition.sub_select == 1) {
+    if(condition.left_sub_select->flag == SCF_SELECT) {
+      // 普通的子查询语句（select）
+      FilterObj filter_obj;
+      filter_obj.init_sub_select_stmt(condition.left_select_stmt);
+      filter_unit->set_left(filter_obj);
+    } else if (condition.left_sub_select->flag == SCF_SOME_VALUES) {
+      // select * from tb where xx in (1, 2, 3) 类似的情况
+      FilterObj filter_obj;
+      filter_obj.init_values(&condition.left_sub_select->some_values.values);
+      filter_unit->set_left(filter_obj);
+    }
+
   } else {
     FilterObj filter_obj;
     filter_obj.init_value(condition.left_value);
@@ -130,6 +145,21 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
+  } else if (condition.sub_select == 2) {
+    // FilterObj filter_obj;
+    // filter_obj.init_sub_select_stmt(condition.right_select_stmt);
+    // filter_unit->set_right(filter_obj);
+    if (condition.right_sub_select->flag == SCF_SELECT) {
+      // 普通的子查询语句（select）
+      FilterObj filter_obj;
+      filter_obj.init_sub_select_stmt(condition.right_select_stmt);
+      filter_unit->set_right(filter_obj);
+    } else if (condition.right_sub_select->flag == SCF_SOME_VALUES) {
+      // select * from tb where xx in (1, 2, 3) 类似的情况
+      FilterObj filter_obj;
+      filter_obj.init_values(&condition.right_sub_select->some_values.values);
+      filter_unit->set_right(filter_obj);
+    }
   } else {
     FilterObj filter_obj;
     filter_obj.init_value(condition.right_value);

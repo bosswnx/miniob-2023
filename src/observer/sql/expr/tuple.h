@@ -28,6 +28,17 @@ See the Mulan PSL v2 for more details. */
 
 class Table;
 
+
+enum class TupleType 
+{
+  BASIC,
+  ROW,
+  PROJECT,
+  EXPRESSION,
+  VALUE_LIST,
+  JOINED,
+};
+
 /**
  * @defgroup Tuple
  * @brief Tuple 元组，表示一行数据，当前返回客户端时使用
@@ -101,6 +112,11 @@ public:
    */
   virtual RC cell_at(int index, Value &cell) const = 0;
 
+  virtual TupleType type() const
+  {
+    return TupleType::BASIC;
+  }
+
   /**
    * @brief 根据cell的描述，获取cell的值
    * 
@@ -149,6 +165,11 @@ public:
   void set_record(Record *record)
   {
     this->record_ = record;
+  }
+
+  TupleType type() const override
+  {
+    return TupleType::ROW;
   }
 
   void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
@@ -249,6 +270,11 @@ public:
     this->tuple_ = tuple;
   }
 
+  TupleType type() const override
+  {
+    return TupleType::PROJECT;
+  }
+
   void add_cell_spec(TupleCellSpec *spec)
   {
     speces_.push_back(spec);
@@ -318,6 +344,11 @@ public:
     return expr->try_get_value(cell);
   }
 
+  TupleType type() const override
+  {
+    return TupleType::EXPRESSION;
+  }
+
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
@@ -361,6 +392,11 @@ public:
 
     cell = cells_[index];
     return RC::SUCCESS;
+  }
+
+  TupleType type() const override
+  {
+    return TupleType::VALUE_LIST;
   }
 
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
@@ -409,6 +445,11 @@ public:
     }
 
     return RC::NOTFOUND;
+  }
+
+  TupleType type() const override
+  {
+    return TupleType::JOINED;
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &value) const override

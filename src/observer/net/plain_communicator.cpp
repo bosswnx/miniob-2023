@@ -183,46 +183,68 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     return write_state(event, need_disconnect);
   }
 
+  std::string delayed_table_header;
+
   const TupleSchema &schema = sql_result->tuple_schema();
   const int cell_num = schema.cell_num();
 
+  // 写入表头
   for (int i = 0; i < cell_num; i++) {
     const TupleCellSpec &spec = schema.cell_at(i);
     const char *alias = spec.alias();
     if (nullptr != alias || alias[0] != 0) {
       if (0 != i) {
         const char *delim = " | ";
-        rc = writer_->writen(delim, strlen(delim));
-        if (OB_FAIL(rc)) {
-          LOG_WARN("failed to send data to client. err=%s", strerror(errno));
-          return rc;
-        }
+        // rc = writer_->writen(delim, strlen(delim));
+        // if (OB_FAIL(rc)) {
+        //   LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+        //   return rc;
+        // }
+        delayed_table_header.append(delim);
       }
 
-      int len = strlen(alias);
-      rc = writer_->writen(alias, len);
+      // int len = strlen(alias);
+      // rc = writer_->writen(alias, len);
+      // if (OB_FAIL(rc)) {
+      //   LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+      //   sql_result->close();
+      //   return rc;
+      // }
+      delayed_table_header.append(alias);
+    }
+  }
+
+  // 写入换行符
+  if (cell_num > 0) {
+    // char newline = '\n';
+    // rc = writer_->writen(&newline, 1);
+    // if (OB_FAIL(rc)) {
+    //   LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+    //   sql_result->close();
+    //   return rc;
+    // }
+    delayed_table_header.append("\n");
+  }
+
+  rc = RC::SUCCESS;
+  Tuple *tuple = nullptr;
+  bool not_empty_result = false;
+  // 写入行数据
+  while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
+    assert(tuple != nullptr);
+
+    if (!not_empty_result) not_empty_result = true;
+
+    if (!delayed_table_header.empty()) {
+      rc = writer_->writen(delayed_table_header.data(), delayed_table_header.size());
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to send data to client. err=%s", strerror(errno));
         sql_result->close();
         return rc;
       }
+      // 释放内存, 也相当于做一个标记, 防止重复发送表头
+      delayed_table_header.clear();
     }
-  }
-
-  if (cell_num > 0) {
-    char newline = '\n';
-    rc = writer_->writen(&newline, 1);
-    if (OB_FAIL(rc)) {
-      LOG_WARN("failed to send data to client. err=%s", strerror(errno));
-      sql_result->close();
-      return rc;
-    }
-  }
-
-  rc = RC::SUCCESS;
-  Tuple *tuple = nullptr;
-  while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
-    assert(tuple != nullptr);
 
     int cell_num = tuple->cell_num();
     for (int i = 0; i < cell_num; i++) {
@@ -258,6 +280,24 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       LOG_WARN("failed to send data to client. err=%s", strerror(errno));
       sql_result->close();
       return rc;
+    }
+  }
+
+  if (rc == RC::INVALID_ARGUMENT) {
+    event->sql_result()->set_return_code(rc);
+    return write_state(event, need_disconnect);
+  }
+  
+  if (!not_empty_result) {
+    if (!delayed_table_header.empty()) {
+      rc = writer_->writen(delayed_table_header.data(), delayed_table_header.size());
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+        sql_result->close();
+        return rc;
+      }
+      // 释放内存, 也相当于做一个标记, 防止重复发送表头
+      delayed_table_header.clear();
     }
   }
 
