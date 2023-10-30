@@ -466,6 +466,9 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
       value.set_boolean(bool_value);
     }
   }
+  if (rc == RC::RECORD_EOF) {
+    rc = RC::SUCCESS;
+  }
   has_sub_queried_ = false;
   return rc;
 }

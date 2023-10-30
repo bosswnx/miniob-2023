@@ -542,6 +542,8 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         for (auto &condition : *$7) {
           $$->selection.conditions.emplace_back(condition);
         }
+        // reverse
+        std::reverse($$->selection.conditions.begin(), $$->selection.conditions.end());
         /* delete $7; */
       }
       free($4);
