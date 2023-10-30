@@ -357,10 +357,14 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 
     if (rc == RC::INVALID_ARGUMENT) return rc;
 
-    // NOT_IN 判断
+    // EOF 判断
     if (rc == RC::RECORD_EOF) {
       if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
         value.set_boolean(true);
+        rc = RC::SUCCESS;
+        return rc;
+      } else if (comp_ == CompOp::IN_ || comp_ == CompOp::EXISTS_) {
+        value.set_boolean(false);
         rc = RC::SUCCESS;
         return rc;
       }
@@ -435,10 +439,14 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 
     if (rc == RC::INVALID_ARGUMENT) return rc;
 
-    // NOT_IN 判断
+    // EOF判断
     if (rc == RC::RECORD_EOF) {
       if (comp_ == CompOp::NOT_IN || comp_ == CompOp::NOT_EXISTS_) {
         value.set_boolean(true);
+        rc = RC::SUCCESS;
+        return rc;
+      } else if (comp_ == CompOp::IN_ || comp_ == CompOp::EXISTS_) {
+        value.set_boolean(false);
         rc = RC::SUCCESS;
         return rc;
       }
