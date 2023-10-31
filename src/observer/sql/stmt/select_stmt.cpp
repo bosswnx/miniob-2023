@@ -20,6 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include <cstddef>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 SelectStmt::~SelectStmt()
 {
@@ -50,7 +53,7 @@ RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select)
   if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].attribute_name == "*") {
     int fields_num = 0;
     for (size_t j = 0; j < sub_select->selection.relations.size(); ++j) {
-      const char *table_name = sub_select->selection.relations[j].c_str();
+      const char *table_name = sub_select->selection.relations[j].name.c_str();
       if (nullptr == table_name) {
         LOG_WARN("invalid argument. relation name is null. index=%d", j);
         return RC::INVALID_ARGUMENT;
@@ -70,7 +73,9 @@ RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select)
   return RC::SUCCESS;
 }
 
-RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
+RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
+    std::shared_ptr<std::unordered_map<string, string>> name2alias,
+    std::shared_ptr<std::unordered_map<string, string>> alias2name)
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
@@ -82,6 +87,31 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     return RC::INVALID_ARGUMENT;
   }
 
+  if (name2alias == nullptr) {
+    name2alias = std::make_shared<std::unordered_map<string, string>>();
+  }
+  if (alias2name == nullptr) {
+    alias2name = std::make_shared<std::unordered_map<string, string>>();
+  }
+
+  for (size_t i = 0; i < select_sql.relations.size(); ++i) {
+    if (select_sql.relations[i].alias.size()) {
+      (*alias2name)[select_sql.relations[i].alias] = select_sql.relations[i].name;
+      (*name2alias)[select_sql.relations[i].name] = select_sql.relations[i].alias;
+    }
+  }
+
+  // 将 where 语句 conditions 里 relation 的 alias 还原为 name
+  for (auto &condition: select_sql.conditions) {
+    if (alias2name->find(condition.left_attr.relation_name) != alias2name->end()) {
+      condition.left_attr.alias = condition.left_attr.relation_name;
+      condition.left_attr.relation_name = (*alias2name)[condition.left_attr.alias];
+    }
+    if (alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
+      condition.right_attr.alias = condition.right_attr.relation_name;
+      condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
+    }
+  }
 
   // 子查询，先检测conditions中是否有子查询condition，如果有，先为其转成stmt放在condition node中备用。
   for (size_t i = 0; i < select_sql.conditions.size(); ++i) {
@@ -101,7 +131,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 
         Stmt *subquery_stmt = nullptr;
         // 生成左子查询的 stmt （如果有的话）
-        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt);
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot construct subquery stmt");
           return rc;
@@ -126,7 +156,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 
         Stmt *subquery_stmt = nullptr;
         // 生成右子查询的 stmt （如果有的话）
-        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt);
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot construct subquery stmt");
           return rc;
@@ -148,7 +178,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   // 2. 将表加入到tables中
   // 3. 将表加入到table_map中
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    const char *table_name = select_sql.relations[i].c_str();
+    const char *table_name = select_sql.relations[i].name.c_str();
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
@@ -204,31 +234,42 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
       if (relation_attr.aggre_type == AggreType::NONE) {
+        if (relation_attr.alias.size()) {  // 如果有别名，报错
+          LOG_WARN("invalid selection. * cannot have alias.");
+          return RC::INVALID_ARGUMENT;
+        }
         for (Table *table : tables) {
           // wildcard: 通配符
-        wildcard_fields(table, query_fields);
+          wildcard_fields(table, query_fields);
         }
-      } else if (relation_attr.aggre_type == AggreType::CNT) {
+      } else if (relation_attr.aggre_type == AggreType::CNT) {  // CNT可以
         auto *table = tables[0];
         auto *field_meta = table->table_meta().field(0);
         query_fields.push_back(Field(table, field_meta));
         aggre_types.push_back(AggreType::CNTALL);
-      } else {
+      } else {  // 如果是聚合函数，报错
         LOG_WARN("invalid selection in aggregation function.");
         return RC::INVALID_ARGUMENT;
       }
 
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
+    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 如果表名不为空
       const char *table_name = relation_attr.relation_name.c_str();
+      if (alias2name->find(table_name) != alias2name->end()) {  // 如果表名在name2alias中，说明有别名
+        table_name = (*alias2name)[table_name].c_str();
+      }
       const char *field_name = relation_attr.attribute_name.c_str();
 
-      // table_name为*，且field_name不为*，则报错
-      if (0 == strcmp(table_name, "*")) {
-        if (0 != strcmp(field_name, "*")) {
+      if (0 == strcmp(table_name, "*")) {  // 表名为*
+        if (0 != strcmp(field_name, "*")) {  // 属性名不为*，报错
           LOG_WARN("invalid field name while table is *. attr=%s", field_name);
           return RC::SCHEMA_FIELD_MISSING;
         }
-        if (relation_attr.aggre_type == AggreType::NONE) {
+        // 和 * 一样
+        if (relation_attr.alias.size()) {
+          LOG_WARN("invalid selection. * cannot have alias.");
+          return RC::INVALID_ARGUMENT;
+        }
+        if (relation_attr.aggre_type == AggreType::NONE) {  // 如果是普通的查询
           for (Table *table : tables) {
             wildcard_fields(table, query_fields);
           }
@@ -241,7 +282,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
           LOG_WARN("invalid selection in aggregation function.");
           return RC::INVALID_ARGUMENT;
         }
-      } else {
+      } else {  // 表名不是*，是具体的表名
         auto iter = table_map.find(table_name);
         if (iter == table_map.end()) {
           LOG_WARN("no such table in from list: %s", table_name);
@@ -250,6 +291,10 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 
         Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
+          if (relation_attr.alias.size()) {
+            LOG_WARN("invalid selection. * cannot have alias.");
+            return RC::INVALID_ARGUMENT;
+          }
           if (relation_attr.aggre_type == AggreType::NONE) {
             wildcard_fields(table, query_fields);
           } else if (relation_attr.aggre_type == AggreType::CNT) {
@@ -267,13 +312,13 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta));
+          query_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias));
           if (relation_attr.aggre_type != AggreType::NONE) {
             aggre_types.push_back(relation_attr.aggre_type);
           }
         }
       }
-    } else {
+    } else {  // 只有属性名，没有表名
       if (tables.size() != 1) {
         LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
@@ -295,7 +340,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
             break;
         }
       }
-      query_fields.push_back(Field(table, field_meta));
+      query_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias));
       if (relation_attr.aggre_type != AggreType::NONE) {
         aggre_types.push_back(relation_attr.aggre_type);
       }
@@ -303,6 +348,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
+
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
