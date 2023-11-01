@@ -21,6 +21,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 class Expression;
 class SelectStmt;
+class LogicalOperator;
+class PhysicalOperator;
 
 /**
  * @defgroup SQLParser SQL Parser 
@@ -184,6 +186,16 @@ struct DeleteSqlNode
   std::vector<ConditionSqlNode> conditions;
 };
 
+
+struct UpdateTarget
+{
+  // std::string attribute_name;
+  bool is_value;
+  Value       value;
+  SubSelectSqlNode* sub_select;
+  SelectStmt* select_stmt;
+};
+
 /**
  * @brief 描述一个update语句
  * @ingroup SQLParser
@@ -192,7 +204,7 @@ struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
   std::vector<std::string>      attributes_name;
-  std::vector<Value>            values;
+  std::vector<UpdateTarget>     targets;
   std::vector<ConditionSqlNode> conditions;
 };
 

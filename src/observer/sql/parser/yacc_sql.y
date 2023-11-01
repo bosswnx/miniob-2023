@@ -122,6 +122,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
+  UpdateTarget *                      update_target_t;
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
@@ -168,6 +169,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            sub_select_stmt
+%type <update_target_t>     update_value_target
 %type <sql_node>            insert_stmt
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
@@ -473,17 +475,17 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     ;
 
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value update_value_list where 
+    UPDATE ID SET ID EQ update_value_target update_value_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       if ($7 != nullptr) {
         $$->update.attributes_name.swap($7->attributes_name);
-        $$->update.values.swap($7->values);
+        $$->update.targets.swap($7->targets);
         delete $7;
       }
       $$->update.relation_name = $2;
       $$->update.attributes_name.emplace_back($4);
-      $$->update.values.emplace_back(*$6);
+      $$->update.targets.emplace_back(*$6);
       if ($8 != nullptr) {
         $$->update.conditions.swap(*$8);
         delete $8;
@@ -492,12 +494,24 @@ update_stmt:      /*  update 语句的语法解析树*/
       free($4);
     };
 
+update_value_target:
+    value {
+      $$ = new UpdateTarget;
+      $$->value = *$1;
+      $$->is_value = 1;
+    }
+    | sub_select_stmt {
+      $$ = new UpdateTarget;
+      $$->sub_select = $1;
+      $$->is_value = 0;
+    };
+
 update_value_list:
     /* empty */
     {
       $$ = nullptr;
     }
-    | COMMA ID EQ value update_value_list
+    | COMMA ID EQ update_value_target update_value_list
     {
       if ($5 != nullptr) {
         $$ = $5;
@@ -505,7 +519,7 @@ update_value_list:
         $$ = new UpdateSqlNode;
       }
       $$->attributes_name.emplace_back($2);
-      $$->values.emplace_back(*$4);
+      $$->targets.emplace_back(*$4);
       free($2);
       delete $4;
     };

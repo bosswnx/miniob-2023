@@ -36,8 +36,11 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/update_stmt.h"
 #include "sql/stmt/explain_stmt.h"
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "sql/expr/expression.h"
+
 
 using namespace std;
 
@@ -247,13 +250,33 @@ RC LogicalPlanGenerator::create_plan(
   // const Value *value = update_stmt->values();
   // int value_amount = update_stmt->value_amount();
   auto &field_metas = update_stmt->field_metas();
-  auto &values = update_stmt->values();
+  auto &targets = update_stmt->targets();
   FilterStmt *filter_stmt = update_stmt->filter_stmt();
 
   std::vector<Field> fields;
   for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
     const FieldMeta *field_meta = table->table_meta().field(i);
     fields.push_back(Field(table, field_meta));
+  }
+
+  // 对可能的子查询创建逻辑计划
+  std::vector<UpdateSpecificTarget*> update_targets;
+  UpdateSpecificTarget* update_target = nullptr;
+  unique_ptr<LogicalOperator> sub_query_logical_oper = nullptr;
+  for (int i=0; i<update_stmt->targets().size(); ++i) {
+    if (!update_stmt->targets()[i].is_value) {
+      sub_query_logical_oper = nullptr;
+      RC rc = create_plan(update_stmt->targets()[i].select_stmt, sub_query_logical_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
+        return rc;
+      }
+      // update_stmt->targets()[i].sub_select_logical_oper = std::move(sub_query_logical_oper);
+      update_target = new UpdateSpecificTarget(std::move(sub_query_logical_oper));
+    } else {
+      update_target = new UpdateSpecificTarget(update_stmt->targets()[i].value);
+    }
+    update_targets.emplace_back(update_target);
   }
 
   // 从表中线性获取数据
@@ -265,7 +288,7 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_metas, values));
+  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, field_metas, update_targets));
 
   if (predicate_oper) {
     predicate_oper->add_child(std::move(table_get_oper));

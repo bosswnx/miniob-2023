@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include "common/rc.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field_meta.h"
@@ -34,7 +35,7 @@ class UpdateStmt : public Stmt
 public:
   // 使用 pair 存储字段名和 Value
   UpdateStmt(Table *table, FilterStmt *filter_stmt, 
-      const std::vector<FieldMeta> &field_metas, const std::vector<Value> &values, int value_amount);
+      const std::vector<FieldMeta> &field_metas, std::vector<UpdateTarget> &targets, int value_amount);
 
   ~UpdateStmt() override;
   FilterStmt *filter_stmt() const
@@ -47,7 +48,7 @@ public:
   }
 
 public:
-  static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
+  static RC create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt);
 
 public:
   Table *table() const
@@ -61,14 +62,17 @@ public:
   const std::vector<FieldMeta> &field_metas() const {
     return field_metas_;
   }
-  const std::vector<Value> &values() const {
-    return values_;
+  // const std::vector<Value> &values() const {
+  //   return values_;
+  // }
+  std::vector<UpdateTarget> &targets() {
+    return targets_;
   }
 
 private:
   Table *table_ = nullptr;
   std::vector<FieldMeta> field_metas_;
-  std::vector<Value> values_;
+  std::vector<UpdateTarget> targets_;
   int value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
 };

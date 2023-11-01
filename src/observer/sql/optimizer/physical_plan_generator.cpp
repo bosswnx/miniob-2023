@@ -297,7 +297,16 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique
     }
   }
 
-  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(update_oper.table(), update_oper.field_metas(), update_oper.values()));
+  for (int i=0; i<update_oper.targets().size(); ++i) {
+    if (!update_oper.targets()[i]->is_value()) {
+      // 创建物理计划
+      unique_ptr<PhysicalOperator> sub_select_physical_oper = nullptr;
+      rc = create(*update_oper.targets()[i]->get_sub_select_logical_operator(), sub_select_physical_oper);
+      update_oper.targets()[i]->set_sub_select_physical_operator (std::move(sub_select_physical_oper));
+    }
+  }
+
+  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(update_oper.table(), update_oper.field_metas(), update_oper.targets()));
   if (child_physical_oper) {
     oper->add_child(std::move(child_physical_oper));
   }
