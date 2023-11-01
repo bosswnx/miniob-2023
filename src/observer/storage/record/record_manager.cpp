@@ -234,9 +234,13 @@ RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
       (*old_values)[i].set_type(field_metas[i].type());
       (*old_values)[i].set_data(record_data + field_metas[i].offset(), field_metas[i].len());
       if(values[i].get_null_or_()){
-        record_data[field_metas[i].index()] = 1;
+        if (field_metas[i].is_null()) {
+          record_data[field_metas[i].index()] = 1;
+        } else {
+          return RC::INTERNAL;
+        }
       }
-      else{
+      else {
         record_data[field_metas[i].index()] = 0;
       }
       memcpy(record_data + field_metas[i].offset(), values[i].data(), field_metas[i].len());

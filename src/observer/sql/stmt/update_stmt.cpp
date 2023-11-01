@@ -113,14 +113,16 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 
           update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_float()).c_str());
           update.targets[i].value.set_type(AttrType::CHARS);
+        } else if (update.targets[i].value.get_null_or_()) {
+           
         } else {
           LOG_WARN("type mismatch. to_type=%d, from_type=%d", to_type, from_type);
           return RC::INVALID_ARGUMENT;
         }
       }
     }
-    }
   }
+  
 
   FilterStmt *filter_stmt = nullptr;
   RC rc = FilterStmt::create(db, 
