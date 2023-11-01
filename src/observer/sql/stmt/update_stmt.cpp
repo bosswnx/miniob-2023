@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/stmt/update_stmt.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -92,12 +93,31 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
   for (int i = 0; i < field_metas.size(); i++) {
     if(update.targets[i].is_value) {
       if (field_metas[i].type() != update.targets[i].value.attr_type()) {
-        LOG_ERROR("Invalid value type. table name=%s, field name=%s, type=%d, but given=%d",
-                  table_meta_.name(), field_metas[i].name(), field_metas[i].type(), update.targets[i].value.attr_type());
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        AttrType to_type = field_metas[i].type();
+        AttrType from_type = update.targets[i].value.attr_type();
+
+        if (to_type == AttrType::INTS && from_type == AttrType::FLOATS) {
+
+          update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          update.targets[i].value.set_type(AttrType::INTS);
+        } else if (to_type == AttrType::FLOATS && from_type == AttrType::INTS) {
+
+          update.targets[i].value.set_float((float)update.targets[i].value.get_int());
+          update.targets[i].value.set_type(AttrType::FLOATS);
+        } else if (to_type == AttrType::CHARS && from_type == AttrType::INTS) {
+
+          update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_int()).c_str());
+          update.targets[i].value.set_type(AttrType::CHARS);
+        } else if (to_type == AttrType::CHARS && from_type == AttrType::FLOATS) {
+
+          update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_float()).c_str());
+          update.targets[i].value.set_type(AttrType::CHARS);
+        } else {
+          LOG_WARN("type mismatch. to_type=%d, from_type=%d", to_type, from_type);
+          return RC::INVALID_ARGUMENT;
+        }
       }
     }
-
   }
 
   FilterStmt *filter_stmt = nullptr;

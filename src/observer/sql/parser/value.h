@@ -134,6 +134,8 @@ public:
 
   bool check_date(date val) const;
 
+  // bool cast(AttrType type_);
+
   std::string to_string() const;
 
   int compare(const Value &other) const;
