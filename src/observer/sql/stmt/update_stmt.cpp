@@ -20,7 +20,6 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/field/field_meta.h"
 #include "storage/table/table.h"
-#include <arm/types.h>
 #include <cstdio>
 #include <utility> // pair
 #include "sql/stmt/select_stmt.h"
