@@ -72,7 +72,18 @@ struct RelAttrSqlNode
 {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  std::string alias; ///< attribute alias (may be NULL) 属性别名
   AggreType aggre_type;
+};
+
+/**
+ * @brief 描述一个relation
+ * @ingroup SQLParser
+ */
+struct RelationSqlNode
+{
+  std::string name;  ///< relation name
+  std::string alias;
 };
 
 /**
@@ -130,7 +141,7 @@ struct ConditionSqlNode
 
 struct JoinSqlNode
 {
-  std::string relation_name;  ///< Relation to join with
+  RelationSqlNode relation;  ///< Relation to join with
   std::vector<ConditionSqlNode> conditions;
 };
 
@@ -148,7 +159,7 @@ struct JoinSqlNode
 struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<std::string>        relations;     ///< 查询的表
+  std::vector<RelationSqlNode>    relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<JoinSqlNode>        joins;         ///< join clause
 };

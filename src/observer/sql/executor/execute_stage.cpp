@@ -78,12 +78,16 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
           if (aggre_types[i] != AggreType::CNTALL) {
             alias += "(";
             auto &query_fields = select_stmt->query_fields();
-            if (with_table_name) {
-              alias += query_fields[i].table_name();
-              alias += ".";
+            if (query_fields[i].have_field_alias()) {
+              alias += query_fields[i].field_alias();
+            } else {
+              if (with_table_name) {
+                alias += query_fields[i].table_name();
+                alias += ".";
+              }
+              alias += query_fields[i].field_name();
+              alias += ")";
             }
-            alias += query_fields[i].field_name();
-            alias += ")";
           }
           schema.append_cell(alias.c_str());
         }
@@ -91,10 +95,14 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       }
 
       for (const Field &field : select_stmt->query_fields()) {
-        if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name());
+        if (field.have_field_alias()) {
+          schema.append_cell(field.field_alias());
         } else {
-          schema.append_cell(field.field_name());
+          if (with_table_name) {
+            schema.append_cell(field.table_name());
+          } else {
+            schema.append_cell(field.field_name());
+          }
         }
       }
     } break;

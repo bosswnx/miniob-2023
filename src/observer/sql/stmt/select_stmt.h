@@ -14,6 +14,8 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 
@@ -43,7 +45,9 @@ public:
   }
 
 public:
-  static RC create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt);
+  static RC create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
+      std::shared_ptr<std::unordered_map<string,string>> name2alias = nullptr,
+      std::shared_ptr<std::unordered_map<string,string>> alias2name = nullptr);
 
 public:
   const std::vector<Table *> &tables() const
