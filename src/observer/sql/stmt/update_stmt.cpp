@@ -13,6 +13,8 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/update_stmt.h"
+#include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -21,11 +23,14 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include <cstdio>
 #include <utility> // pair
+#include "sql/stmt/select_stmt.h"
 
 UpdateStmt::UpdateStmt(Table *table, FilterStmt *filter_stmt, 
-    const std::vector<FieldMeta> &field_metas, const std::vector<Value> &values, int value_amount)
-    : table_(table), filter_stmt_(filter_stmt), field_metas_(field_metas), values_(values), value_amount_(value_amount)
-{}
+    const std::vector<FieldMeta> &field_metas, std::vector<UpdateTarget> &targets, int value_amount)
+    : table_(table), filter_stmt_(filter_stmt), field_metas_(field_metas), value_amount_(value_amount)
+{
+  targets_ = std::move(targets);
+}
 
 UpdateStmt::~UpdateStmt()
 {
@@ -35,7 +40,7 @@ UpdateStmt::~UpdateStmt()
   }
 }
 
-RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
+RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 {
   // printf("create update stmt.\n");
   const char *table_name = update.relation_name.c_str();
@@ -51,6 +56,20 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   if (nullptr == table) {
     LOG_WARN("[UpdateStmt] no such table. db=%s, table_name=%s", db->name(), table_name);
     return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  // 对 update.targets 遍历
+  for (int i=0; i<update.targets.size(); ++i) {
+    if (!update.targets[i].is_value) {
+      Stmt *subquery_stmt = nullptr;
+      RC rc = SelectStmt::create(db, update.targets[i].sub_select->selection, subquery_stmt);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot construct subquery stmt");
+        return rc;
+      }
+      auto *subquery_select_stmt = dynamic_cast<SelectStmt *>(subquery_stmt);
+      update.targets[i].select_stmt = subquery_select_stmt;
+    }
   }
 
   // std::vector<Field> query_fields;
@@ -72,10 +91,32 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   // 字段类型检查
   auto table_meta_ = table->table_meta();
   for (int i = 0; i < field_metas.size(); i++) {
-    if (field_metas[i].type() != update.values[i].attr_type()) {
-      LOG_ERROR("Invalid value type. table name=%s, field name=%s, type=%d, but given=%d",
-                table_meta_.name(), field_metas[i].name(), field_metas[i].type(), update.values[i].attr_type());
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    if(update.targets[i].is_value) {
+      if (field_metas[i].type() != update.targets[i].value.attr_type()) {
+        AttrType to_type = field_metas[i].type();
+        AttrType from_type = update.targets[i].value.attr_type();
+
+        if (to_type == AttrType::INTS && from_type == AttrType::FLOATS) {
+
+          update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          update.targets[i].value.set_type(AttrType::INTS);
+        } else if (to_type == AttrType::FLOATS && from_type == AttrType::INTS) {
+
+          update.targets[i].value.set_float((float)update.targets[i].value.get_int());
+          update.targets[i].value.set_type(AttrType::FLOATS);
+        } else if (to_type == AttrType::CHARS && from_type == AttrType::INTS) {
+
+          update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_int()).c_str());
+          update.targets[i].value.set_type(AttrType::CHARS);
+        } else if (to_type == AttrType::CHARS && from_type == AttrType::FLOATS) {
+
+          update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_float()).c_str());
+          update.targets[i].value.set_type(AttrType::CHARS);
+        } else {
+          LOG_WARN("type mismatch. to_type=%d, from_type=%d", to_type, from_type);
+          return RC::INVALID_ARGUMENT;
+        }
+      }
     }
   }
 
@@ -93,12 +134,17 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   }
 
   // 转换类型 update.value 到 value
-  vector<Value> values;
-  for (auto &value : update.values) {
-    values.push_back(value);
-  }
+  // vector<Value> values;
+  // for (auto &value : update.values) {
+  //   values.push_back(value);
+  // }
 
-  UpdateStmt *update_stmt = new UpdateStmt(table, filter_stmt, field_metas, values, values.size());
+  // vector<UpdateTarget> targets;
+  // for (auto &target : update.targets) {
+  //   targets.push_back(target);
+  // }
+
+  UpdateStmt *update_stmt = new UpdateStmt(table, filter_stmt, field_metas, update.targets, update.targets.size());
   stmt = update_stmt;
   return RC::SUCCESS;
 }

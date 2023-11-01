@@ -521,3 +521,4 @@ bool Value::get_boolean() const
   }
   return false;
 }
+
