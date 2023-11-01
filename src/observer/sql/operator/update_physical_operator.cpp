@@ -44,6 +44,12 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
         targets_[i]->get_sub_select_physical_operator()->open(trx);
         RC rc = targets_[i]->get_sub_select_physical_operator()->next();
         if (rc != RC::SUCCESS) {
+          if (rc == RC::RECORD_EOF) {
+            Value cell;
+            cell.set_null(true);
+            values_.push_back(cell);
+            continue;
+          }
           LOG_WARN("failed to get next record: %s", strrc(rc));
           return rc;
         }
