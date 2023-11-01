@@ -98,8 +98,11 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
         AttrType from_type = update.targets[i].value.attr_type();
 
         if (to_type == AttrType::INTS && from_type == AttrType::FLOATS) {
-
-          update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          
+          // update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          // update.targets[i].value.set_type(AttrType::INTS);
+          // 四舍五入
+          update.targets[i].value.set_int((int)(update.targets[i].value.get_float() + 0.5));
           update.targets[i].value.set_type(AttrType::INTS);
         } else if (to_type == AttrType::FLOATS && from_type == AttrType::INTS) {
 
