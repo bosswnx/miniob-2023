@@ -54,9 +54,10 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
         }
         rc = targets_[i]->get_sub_select_physical_operator()->next();
         if (rc != RC::RECORD_EOF) {
-          LOG_WARN("failed to get next record: %s", strrc(rc));
-          rc = RC::INVALID_ARGUMENT; // 检测到了多行值。
-          return rc;
+          // LOG_WARN("failed to get next record: %s", strrc(rc));
+          // rc = RC::INVALID_ARGUMENT; // 检测到了多行值。
+          // return rc;
+          has_failed = true;
         }
         // RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
         Value cell;
@@ -101,6 +102,11 @@ RC UpdatePhysicalOperator::next()
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
+      return rc;
+    }
+
+    if (has_failed) {
+      rc = RC::INVALID_ARGUMENT;
       return rc;
     }
 

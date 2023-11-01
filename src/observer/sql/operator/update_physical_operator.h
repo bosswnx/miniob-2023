@@ -57,5 +57,6 @@ private:
   vector<FieldMeta> field_metas_;
   vector<UpdateSpecificTarget*> targets_;
   vector<Value> values_;
+  bool has_failed = false;
   Trx *trx_ = nullptr;
 };
