@@ -486,8 +486,13 @@ update_stmt:      /*  update 语句的语法解析树*/
       $$->update.relation_name = $2;
       $$->update.attributes_name.emplace_back($4);
       $$->update.targets.emplace_back(*$6);
+      // reverse
+      std::reverse($$->update.targets.begin(), $$->update.targets.end());
+      std::reverse($$->update.attributes_name.begin(), $$->update.attributes_name.end());
       if ($8 != nullptr) {
         $$->update.conditions.swap(*$8);
+        //reverse
+        std::reverse($$->update.conditions.begin(), $$->update.conditions.end());
         delete $8;
       }
       free($2);

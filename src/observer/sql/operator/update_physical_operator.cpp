@@ -52,6 +52,14 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
           LOG_WARN("failed to get current record: %s", strrc(rc));
           return rc;
         }
+
+        Value cell;
+        rc = tuple->cell_at(0, cell);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to get cell: %s", strrc(rc));
+          return rc;
+        }
+
         rc = targets_[i]->get_sub_select_physical_operator()->next();
         if (rc != RC::RECORD_EOF) {
           // LOG_WARN("failed to get next record: %s", strrc(rc));
@@ -59,13 +67,9 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
           // return rc;
           has_failed = true;
         }
+        // close
+        targets_[i]->get_sub_select_physical_operator()->close();
         // RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
-        Value cell;
-        rc = tuple->cell_at(0, cell);
-        if (rc != RC::SUCCESS) {
-          LOG_WARN("failed to get cell: %s", strrc(rc));
-          return rc;
-        }
         values_.push_back(cell);
       }
     }
