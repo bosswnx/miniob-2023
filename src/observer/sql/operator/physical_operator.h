@@ -48,7 +48,8 @@ enum class PhysicalOperatorType
   DELETE,
   INSERT,
   AGGREGATION,
-  UPDATE
+  UPDATE,
+  SORT,
 };
 
 /**

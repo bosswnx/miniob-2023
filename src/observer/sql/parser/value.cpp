@@ -534,3 +534,13 @@ bool Value::get_boolean() const
   return false;
 }
 
+// overide operator
+bool Value::operator<(const Value &other) const
+{
+  return compare(other) < 0;
+}
+
+bool Value::operator>(const Value &other) const
+{
+  return compare(other) > 0;
+}

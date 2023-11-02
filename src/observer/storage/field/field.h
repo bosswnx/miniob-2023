@@ -27,6 +27,8 @@ public:
   Field() = default;
   Field(const Table *table, const FieldMeta *field) : table_(table), field_(field) {}
   Field(const Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias) {}
+  Field(const Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias, const bool is_asc) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias), is_asc_(is_asc) {}
+
   Field(const Field &) = default;
 
   const Table *table() const { return table_; }
@@ -49,9 +51,12 @@ public:
 
   const char *get_data(const Record &record);
 
+  const bool is_asc() {return is_asc_;}
+
 private:
   const Table *table_ = nullptr;  // 字段所在的表
   string table_alias_;
   string field_alias_;
   const FieldMeta *field_ = nullptr;  // 字段的元数据
+  bool is_asc_ = true;                // 是否升序
 };
