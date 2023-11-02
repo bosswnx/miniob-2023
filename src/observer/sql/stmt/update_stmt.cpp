@@ -103,19 +103,19 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
           // update.targets[i].value.set_type(AttrType::INTS);
           // 四舍五入
           update.targets[i].value.set_int((int)(update.targets[i].value.get_float() + 0.5));
-          update.targets[i].value.set_type(AttrType::INTS);
+          // update.targets[i].value.set_type(AttrType::INTS);
         } else if (to_type == AttrType::FLOATS && from_type == AttrType::INTS) {
 
           update.targets[i].value.set_float((float)update.targets[i].value.get_int());
-          update.targets[i].value.set_type(AttrType::FLOATS);
+          // update.targets[i].value.set_type(AttrType::FLOATS);
         } else if (to_type == AttrType::CHARS && from_type == AttrType::INTS) {
 
           update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_int()).c_str());
-          update.targets[i].value.set_type(AttrType::CHARS);
+          // update.targets[i].value.set_type(AttrType::CHARS);
         } else if (to_type == AttrType::CHARS && from_type == AttrType::FLOATS) {
 
           update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_float()).c_str());
-          update.targets[i].value.set_type(AttrType::CHARS);
+          // update.targets[i].value.set_type(AttrType::CHARS);
         } else if (update.targets[i].value.get_null_or_()) {
            
         } else {
