@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 SelectStmt::~SelectStmt()
 {
@@ -318,6 +319,60 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
 
+  // order by
+  std::vector<Field> order_by_fields;
+  for (int i=0; i<select_sql.order_attrs.size(); ++i) {
+    const RelAttrSqlNode &relation_attr = select_sql.order_attrs[i];
+    if (common::is_blank(relation_attr.relation_name.c_str()) &&
+        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
+      LOG_WARN("invalid selection. * cannot have alias.");
+      return RC::INVALID_ARGUMENT;
+    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
+      const char *table_name = relation_attr.relation_name.c_str();
+      if (alias2name->find(table_name) != alias2name->end()) {  // 如果表名在name2alias中，说明有别名
+        table_name = (*alias2name)[table_name].c_str();
+      }
+      const char *field_name = relation_attr.attribute_name.c_str();
+      if (0 == strcmp(table_name, "*")) {  // 表名为*
+        if (0 != strcmp(field_name, "*")) {  // 属性名不为*，报错
+          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        LOG_WARN("invalid selection. * cannot have alias.");
+        return RC::INVALID_ARGUMENT;
+      } else {  // 表名不是*，是具体的表名
+        auto iter = table_map.find(table_name);
+        if (iter == table_map.end()) {
+          LOG_WARN("no such table in from list: %s", table_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        Table *table = iter->second;
+        if (0 == strcmp(field_name, "*")) {
+          LOG_WARN("invalid selection. * cannot have alias.");
+          return RC::INVALID_ARGUMENT;
+        } else {
+          const FieldMeta *field_meta = table->table_meta().field(field_name);
+          if (nullptr == field_meta) {
+            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          order_by_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias, relation_attr.is_asc));
+        }
+      }
+    } else {
+      if (tables.size() != 1) {
+        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      Table *table = tables[0];
+      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      order_by_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias, relation_attr.is_asc));
+    }
+  }
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
@@ -345,6 +400,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->aggre_types_.swap(aggre_types);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->order_by_fields_.swap(order_by_fields);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

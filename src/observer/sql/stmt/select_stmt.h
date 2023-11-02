@@ -64,6 +64,7 @@ public:
   }
   bool is_aggre() const { return is_aggre_; }
   const std::vector<AggreType> &aggre_types() const { return aggre_types_; }
+  const std::vector<Field> &order_by_fields() const { return order_by_fields_; }
 
 private:
   std::vector<Field> query_fields_;
@@ -71,4 +72,5 @@ private:
   std::vector<Table *> tables_;
   bool is_aggre_;
   FilterStmt *filter_stmt_ = nullptr;
+  std::vector<Field> order_by_fields_;
 };

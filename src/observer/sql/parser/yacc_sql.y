@@ -86,6 +86,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         INNER_JOIN
         WHERE
+        ORDER_BY
+        ASC
         IN
         NI // NOT_IN
         EXISTS
@@ -135,6 +137,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<RelationSqlNode> *    relation_list;
+  std::vector<RelAttrSqlNode> *     order_by_list;
+  std::vector<RelAttrSqlNode> *     order_by_body;
+  bool                              order_by_type;
   std::vector<std::string> *        ID_list;
   std::vector<JoinSqlNode> *        join_list;
   UpdateSqlNode *                   update_info;
@@ -174,6 +179,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       aggre_attr
 %type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
+%type <order_by_type>       order_by_type
+%type <order_by_body>       order_by_body
+%type <order_by_list>       order_by_list
 %type <join_list>           join_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -574,8 +582,57 @@ update_value_list:
       delete $4;
     };
 
+order_by_type:
+    /* empty */
+    {
+      $$ = 1;
+    }
+    | ASC {
+      $$ = 1;
+    }
+    | DESC {
+      $$ = 0;
+    }
+    ;
+
+order_by_body:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA rel_attr order_by_type order_by_body
+    {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $2->is_asc = $3;
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
+order_by_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ORDER_BY rel_attr order_by_type order_by_body
+    {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $2->is_asc = $3;
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
-    SELECT select_attr FROM relation rel_list join_list where
+    SELECT select_attr FROM relation rel_list join_list where order_by_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -611,6 +668,13 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         /* delete $7; */
       }
       delete $4;
+
+      if ($8 != nullptr) {
+        $$->selection.order_attrs.swap(*$8);
+        // reverse
+        std::reverse($$->selection.order_attrs.begin(), $$->selection.order_attrs.end());
+        delete $8;
+      }
     }
     ;
 calc_stmt:

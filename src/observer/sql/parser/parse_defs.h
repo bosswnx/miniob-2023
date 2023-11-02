@@ -74,6 +74,7 @@ struct RelAttrSqlNode
   std::string attribute_name;  ///< attribute name              属性名
   std::string alias; ///< attribute alias (may be NULL) 属性别名
   AggreType aggre_type;
+  bool is_asc;
 };
 
 
@@ -172,6 +173,8 @@ struct SelectSqlNode
   std::vector<RelationSqlNode>    relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<JoinSqlNode>        joins;         ///< join clause
+  std::vector<RelAttrSqlNode>     order_attrs;   ///< order by clause
+  // std::vector<char> order_types;   /// 1: asc, 2: desc 这个放在 RelAttrSqlNode 中
 };
 
 

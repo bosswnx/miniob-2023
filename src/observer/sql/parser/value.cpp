@@ -200,7 +200,16 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
-
+  if (this->is_null_) {
+    // null 是最小的
+    if (other.is_null_) {
+      return 0;
+    } else {
+      return -1;
+    }
+  } else if (other.is_null_) {
+    return 1;
+  }
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
@@ -256,6 +265,7 @@ int Value::compare(const Value &other) const
     int32_t other_date = other.get_date().get_date_value();
     return common::compare_int((void *)&this_date, (void *)&other_date);
   }
+
   // todo: 还要实现date等其他类型的比较
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
@@ -534,3 +544,13 @@ bool Value::get_boolean() const
   return false;
 }
 
+// overide operator
+bool Value::operator<(const Value &other) const
+{
+  return compare(other) < 0;
+}
+
+bool Value::operator>(const Value &other) const
+{
+  return compare(other) > 0;
+}

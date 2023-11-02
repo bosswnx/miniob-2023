@@ -184,6 +184,10 @@ public:
   date get_date() const;
   std::string get_date_str() const;
   bool get_null_or_() const{ return is_null_;};
+
+  // 重载运算符 <
+  bool operator<(const Value &other) const;
+  bool operator>(const Value &other) const;
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;
