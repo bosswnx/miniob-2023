@@ -71,16 +71,17 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   }
 
   // 将 where 语句 conditions 里 relation 的 alias 还原为 name
-  for (auto &condition: select_sql.conditions) {
-    if (alias2name->find(condition.left_attr.relation_name) != alias2name->end()) {
-      condition.left_attr.alias = condition.left_attr.relation_name;
-      condition.left_attr.relation_name = (*alias2name)[condition.left_attr.alias];
-    }
-    if (alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
-      condition.right_attr.alias = condition.right_attr.relation_name;
-      condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
-    }
-  }
+  // TODO: 这里的处理方式不太好，应该在解析语法树的时候就把 alias 还原为 name
+  // for (auto &condition: select_sql.conditions) {
+  //   if (alias2name->find(condition.left_attr.relation_name) != alias2name->end()) {
+  //     condition.left_attr.alias = condition.left_attr.relation_name;
+  //     condition.left_attr.relation_name = (*alias2name)[condition.left_attr.alias];
+  //   }
+  //   if (alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
+  //     condition.right_attr.alias = condition.right_attr.relation_name;
+  //     condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
+  //   }
+  // }
 
   // 子查询，先检测conditions中是否有子查询condition，如果有，先为其转成stmt放在condition node中备用。
   for (size_t i = 0; i < select_sql.conditions.size(); ++i) {

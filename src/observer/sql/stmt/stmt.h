@@ -100,7 +100,7 @@ public:
     if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].attribute_name == "*") {
       int fields_num = 0;
       for (size_t j = 0; j < sub_select->selection.relations.size(); ++j) {
-        const char *table_name = sub_select->selection.relations[j].c_str();
+        const char *table_name = sub_select->selection.relations[j].name.c_str();
         if (nullptr == table_name) {
           LOG_WARN("invalid argument. relation name is null. index=%d", j);
           return RC::INVALID_ARGUMENT;

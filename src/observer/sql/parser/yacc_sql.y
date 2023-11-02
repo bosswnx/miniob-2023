@@ -124,7 +124,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   RelationSqlNode *                 relation;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
-  UpdateTarget *                      update_target_t;
+  UpdateTarget *                    update_target_t;
   Expression *                      expression;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
@@ -139,8 +139,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   float                             floats;
 }
 
-%token <number> NUMBER
-%token <floats> FLOAT
+%token <number> P_INT
+%token <floats> P_FLOAT
 %token <string> ID
 %token <string> DATE_STR
 %token <string> SSS
@@ -152,6 +152,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 // %type <join_condition>      join_condition
 %type <value>               value
 %type <number>              number
+%type <floats>              float
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <relation>            relation
@@ -405,13 +406,20 @@ attr_def:
     }
     ;
 number:
-    NUMBER {$$ = $1;}
+    P_INT       {$$ = $1;}
+    | '-' P_INT   {$$ = -$2;}
     ;
+
+float:
+    P_FLOAT      {$$ = $1;}
+    | '-' P_FLOAT  {$$ = -$2;}
+    ;
+
 type:
     INT_T      { $$=INTS; }
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
-    | DATE_T  { $$=DATES; }
+    | DATE_T   { $$=DATES; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -444,11 +452,11 @@ value_list:
     }
     ;
 value:
-    NUMBER {
+    number {
       $$ = new Value((int)$1);
       @$ = @1;
     }
-    |FLOAT {
+    | float {
       $$ = new Value((float)$1);
       @$ = @1;
     }
@@ -599,7 +607,23 @@ expression_list:
     }
     ;
 expression:
-    expression '+' expression {
+    P_INT {
+      $$ = new ValueExpr(Value($1));
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | P_FLOAT {
+      $$ = new ValueExpr(Value($1));
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | ID {
+      $$ = new RelAttrExpr("", $1);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | ID DOT ID {
+      $$ = new RelAttrExpr($1, $3);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
     | expression '-' expression {
@@ -617,11 +641,6 @@ expression:
     }
     | '-' expression %prec UMINUS {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
-    }
-    | value {
-      $$ = new ValueExpr(*$1);
-      $$->set_name(token_name(sql_string, &@$));
-      delete $1;
     }
     ;
 
@@ -935,18 +954,6 @@ sub_select_stmt:
     {
       $$ = $2;
     }
-    | LBRACE value value_list RBRACE
-    {
-      // select * from xx in (1, 2, 3) 的情况
-      $$ = new ParsedSqlNode(SCF_SOME_VALUES);
-      if ($3 != nullptr) {
-        $$->some_values.values.swap(*$3);
-        delete $3;
-      }
-      $$->some_values.values.emplace_back(*$2);
-      std::reverse($$->some_values.values.begin(), $$->some_values.values.end());
-      delete $2;
-    }
     ;
 
 
@@ -996,64 +1003,22 @@ join_condition:
 */
 
 condition:
-    rel_attr comp_op value
+    expression comp_op expression 
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
+      // $$->left_is_attr = 0;
+      $$->left_expr = $1;
+      // $$->right_is_attr = 0;
+      $$->right_expr = $3;
       $$->comp = $2;
       $$->sub_select = 0;
-
-      delete $1;
-      delete $3;
     }
-    | value comp_op value 
+    | expression comp_op sub_select_stmt
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
-      $$->comp = $2;
-      $$->sub_select = 0;
-
-      delete $1;
-      delete $3;
-    }
-    | rel_attr comp_op rel_attr
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-      $$->sub_select = 0;
-
-      delete $1;
-      delete $3;
-    }
-    | value comp_op rel_attr
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-      $$->sub_select = 0;
-
-      delete $1;
-      delete $3;
-    }
-    | value comp_op sub_select_stmt
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
+      // $$->left_is_attr = 0;
+      $$->left_expr = $1;
+      // $$->right_is_attr = 0;
       //$$->right_value = nullptr;
       //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
       $$->right_sub_select = $3;
@@ -1061,50 +1026,116 @@ condition:
       $$->sub_select = 2;
       $$->comp = $2;
     }
-    | rel_attr comp_op sub_select_stmt
-    {
+    | expression IN LBRACE value value_list RBRACE {
+      // IN/NOT IN
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      //$$->right_value = nullptr;
-      //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
-      $$->right_sub_select = $3;
+      // $$->left_is_attr = 1;
+      $$->left_expr = $1;
+      // $$->right_is_attr = 0;
+      $$->comp = IN_;
       $$->sub_select = 2;
-      $$->comp = $2;
+      $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($5 != nullptr) {
+        $$->right_sub_select->some_values.values.swap(*$5);
+        delete $5;
+      }
+      $$->right_sub_select->some_values.values.emplace_back(*$4);
+      std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
+      delete $4;
     }
-    | sub_select_stmt comp_op value
+    | expression NI LBRACE value value_list RBRACE {
+      // IN/NOT IN
+      $$ = new ConditionSqlNode;
+      // $$->left_is_attr = 1;
+      $$->left_expr = $1;
+      // $$->right_is_attr = 0;
+      $$->comp = NOT_IN;
+      $$->sub_select = 2;
+      $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($5 != nullptr) {
+        $$->right_sub_select->some_values.values.swap(*$5);
+        delete $5;
+      }
+      $$->right_sub_select->some_values.values.emplace_back(*$4);
+      std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
+      delete $4;
+    }
+    | sub_select_stmt comp_op expression
     {
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
+      // $$->left_is_attr = 0;
       //$$->left_value = nullptr;
       //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
       $$->left_sub_select = $1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
+      // $$->right_is_attr = 0;
+      $$->right_expr = $3;
       $$->sub_select = 1;
       $$->comp = $2;
     }
-    | sub_select_stmt comp_op rel_attr
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      //$$->left_value = nullptr;
-      //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
-      $$->left_sub_select = $1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->sub_select = 1;
-      $$->comp = $2;
-    }
-    | comp_op sub_select_stmt
+    // | sub_select_stmt comp_op rel_attr
+    // {
+    //   $$ = new ConditionSqlNode;
+    //   // $$->left_is_attr = 0;
+    //   //$$->left_value = nullptr;
+    //   //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
+    //   $$->left_sub_select = $1;
+    //   // $$->right_is_attr = 1;
+    //   $$->right_attr = *$3;
+    //   $$->sub_select = 1;
+    //   $$->comp = $2;
+
+    //   delete $3;
+    // }
+    | EXISTS sub_select_stmt
     {
       // EXISTS/NOT EXISTS
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->right_is_attr = 0;
-      $$->comp = $1;
+      // $$->left_is_attr = 0;
+      // $$->right_is_attr = 0;
+      $$->comp = EXISTS_;
       $$->right_sub_select = $2;
+      $$->sub_select = 2;
+    }
+    | NOT_EXISTS sub_select_stmt
+    {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      // $$->left_is_attr = 0;
+      // $$->right_is_attr = 0;
+      $$->comp = NOT_EXISTS_;
+      $$->right_sub_select = $2;
+      $$->sub_select = 2;
+    }
+    | EXISTS LBRACE value value_list RBRACE {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      // $$->left_is_attr = 0;
+      // $$->right_is_attr = 0;
+      $$->comp = EXISTS_;
+      $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($4 != nullptr) {
+        $$->right_sub_select->some_values.values.swap(*$4);
+        delete $4;
+      }
+      $$->right_sub_select->some_values.values.emplace_back(*$3);
+      std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
+      delete $3;
+      $$->sub_select = 2;
+    }
+    | NOT_EXISTS LBRACE value value_list RBRACE {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      // $$->left_is_attr = 0;
+      // $$->right_is_attr = 0;
+      $$->comp = NOT_EXISTS_;
+      $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      if ($4 != nullptr) {
+        $$->right_sub_select->some_values.values.swap(*$4);
+        delete $4;
+      }
+      $$->right_sub_select->some_values.values.emplace_back(*$3);
+      std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
+      delete $3;
       $$->sub_select = 2;
     }
     ;
@@ -1118,10 +1149,6 @@ comp_op:
     | LK { $$ = LIKE; }
     | NLK { $$ = NOT_LIKE; }
     | NE { $$ = NOT_EQUAL; }
-    | IN { $$ = IN_; }
-    | NI { $$ = NOT_IN; }
-    | EXISTS { $$ = EXISTS_; }
-    | NOT_EXISTS { $$ = NOT_EXISTS_; }
     ;
 
 load_data_stmt:

@@ -151,10 +151,10 @@ RC LogicalPlanGenerator::create_plan(
     FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
-  for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left = filter_unit->left();
-    const FilterObj &filter_obj_right = filter_unit->right();
+  std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
+  for (FilterUnit *filter_unit : filter_units) {
+    FilterObj &filter_obj_left = filter_unit->left();
+    FilterObj &filter_obj_right = filter_unit->right();
 
     unique_ptr<Expression> left;
     unique_ptr<Expression> right;
@@ -162,8 +162,8 @@ RC LogicalPlanGenerator::create_plan(
     // unique_ptr<Expression> left(filter_obj_left.is_attr
     //                                   ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
     //                                   : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
-    if (filter_obj_left.is_attr) {
-      left = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_left.field)));
+    if (filter_obj_left.is_expr) {
+      left = std::move(filter_obj_left.expr);
     } else {
       if (filter_obj_left.sub_select_stmt != nullptr) {
         // 创建子查询的逻辑计划
@@ -182,7 +182,7 @@ RC LogicalPlanGenerator::create_plan(
         // 特殊子查询，IN (1, 2, 3)
         left = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_left.values)));
       } else {
-        left = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+        left = std::move(filter_obj_left.expr);
       }
     }
 
@@ -190,8 +190,8 @@ RC LogicalPlanGenerator::create_plan(
     //                                       ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
     //                                       : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
 
-    if (filter_obj_right.is_attr) {
-      right = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_right.field)));
+    if (filter_obj_right.is_expr) {
+      right = std::move(filter_obj_right.expr);
     } else {
       if (filter_obj_right.sub_select_stmt != nullptr) {
         // 创建普通select子查询的逻辑计划
@@ -210,7 +210,7 @@ RC LogicalPlanGenerator::create_plan(
         // 特殊子查询，IN (1, 2, 3)
         right = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_right.values)));
       } else {
-        right = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+        right = std::move(filter_obj_right.expr);
       }
     }
 

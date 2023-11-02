@@ -77,8 +77,8 @@ QUOTE            [\'\"]
 {WHITE_SAPCE}                                        // ignore whitespace
 \n                                                   ;
 
-[\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
-[\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+[0-9]+                                  yylval->number=atoi(yytext); RETURN_TOKEN(P_INT);
+[0-9]+\.[0-9]+                          yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(P_FLOAT);
 {QUOTE}[0-9]{4}\-(0?[1-9]|[1-9][0-9])\-(0?[1-9]|[1-9][0-9]){QUOTE} yylval->string=strdup(yytext); RETURN_TOKEN(DATE_STR);  // 使用正则表达式过滤DATE。需要在yacc文件中增加 %token <string> DATE_STR
 
 ";"                                     RETURN_TOKEN(SEMICOLON);

@@ -14,6 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <memory>
 #include <vector>
 #include <unordered_map>
 #include "sql/parser/parse_defs.h"
@@ -28,33 +29,36 @@ class SelectStmt;
 
 struct FilterObj 
 {
-  bool is_attr;
-  Field field;
-  Value value;
+  bool is_expr;
+  std::unique_ptr<Expression> expr;
   SelectStmt *sub_select_stmt = nullptr;
   std::vector<Value> *values = nullptr;
-
-  void init_attr(const Field &field)
+  void operator=(FilterObj &obj)
   {
-    is_attr = true;
-    this->field = field;
+    is_expr = obj.is_expr;
+    if (is_expr) {
+      expr = std::move(obj.expr);
+    } else {
+      sub_select_stmt = obj.sub_select_stmt;
+      values = obj.values;
+    }
   }
 
-  void init_value(const Value &value)
+  void init_expr(std::unique_ptr<Expression> expr)
   {
-    is_attr = false;
-    this->value = value;
+    is_expr = true;
+    this->expr = std::move(expr);
   }
 
   void init_sub_select_stmt(SelectStmt *stmt)
   {
-    is_attr = false;
+    is_expr = false;
     sub_select_stmt = stmt;
   }
 
   void init_values(std::vector<Value> *values)
   {
-    is_attr = false;
+    is_expr = false;
     this->values = values;
   }
 };
@@ -76,20 +80,20 @@ public:
     return comp_;
   }
 
-  void set_left(const FilterObj &obj)
+  void set_left(FilterObj &obj)
   {
     left_ = obj;
   }
-  void set_right(const FilterObj &obj)
+  void set_right(FilterObj &obj)
   {
     right_ = obj;
   }
 
-  const FilterObj &left() const
+  FilterObj &left()
   {
     return left_;
   }
-  const FilterObj &right() const
+  FilterObj &right()
   {
     return right_;
   }
@@ -111,7 +115,7 @@ public:
   virtual ~FilterStmt();
 
 public:
-  const std::vector<FilterUnit *> &filter_units() const
+  std::vector<FilterUnit *> &filter_units()
   {
     return filter_units_;
   }
@@ -124,5 +128,6 @@ public:
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
 private:
+
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
 };

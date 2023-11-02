@@ -49,6 +49,7 @@ enum class ExprType
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
   SUBQUERY,     ///< 子查询
+  RELATTR,      ///< 字段列表
 };
 
 /**
@@ -173,6 +174,33 @@ public:
 
 private:
   Field field_;
+};
+
+/**
+ * @brief 字段列表表达式
+ * @ingroup Expression
+ */
+class RelAttrExpr : public Expression
+{
+public:
+  RelAttrExpr() = default;
+  RelAttrExpr(const char *table_name, const char *field_name) : table_name_(table_name), field_name_(field_name) {}
+  RelAttrExpr(const std::string &table_name, const std::string &field_name) : table_name_(table_name), field_name_(field_name) {}
+
+  virtual ~RelAttrExpr() = default;
+
+  ExprType type() const override { return ExprType::RELATTR; }
+  AttrType value_type() const override { return UNDEFINED; }
+
+  RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
+  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
+
+  string &table_name() { return table_name_; }
+  string &field_name() { return field_name_; }
+
+private:
+  std::string table_name_;
+  std::string field_name_;
 };
 
 /**
