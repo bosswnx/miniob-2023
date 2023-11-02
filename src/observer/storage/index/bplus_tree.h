@@ -616,8 +616,8 @@ protected:
   RC adjust_root(LatchMemo &latch_memo, Frame *root_frame);
 
 private:
-  common::MemPoolItem::unique_ptr make_keys(const char *user_key, const RID &rid);
-  common::MemPoolItem::unique_ptr make_keys(const vector<const char *> &user_keys, const RID &rid);
+  common::MemPoolItem::unique_ptr make_keys(const char *user_key, const RID &rid, bool has_null = false);
+  common::MemPoolItem::unique_ptr make_keys(const vector<const char *> &user_keys, const RID &rid, bool has_null = false);
   void free_keys(char *keys);
 
 protected:

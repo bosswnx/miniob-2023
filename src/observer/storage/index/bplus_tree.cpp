@@ -1382,7 +1382,7 @@ RC BplusTreeHandler::create_new_tree(const char *keys, const RID *rid)
   return rc;
 }
 
-MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &user_keys, const RID &rid)
+MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &user_keys, const RID &rid, bool has_null)
 {
   MemPoolItem::unique_ptr keys = mem_pool_item_->alloc_unique_ptr();
   if (keys == nullptr) {
@@ -1399,7 +1399,7 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &
     }
     offset += file_header_.attr_lengths[i];
   }
-  if (file_header_.is_unique) {
+  if (file_header_.is_unique && !has_null) {
     memset(static_cast<char *>(keys.get()) + offset, 0, sizeof(rid));
   } else {
     memcpy(static_cast<char *>(keys.get()) + offset, &rid, sizeof(rid));
