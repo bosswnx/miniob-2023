@@ -99,7 +99,9 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
           schema.append_cell(field.field_alias());
         } else {
           if (with_table_name) {
-            schema.append_cell(field.table_name());
+            std::string table_name = field.table_name();
+            std::string field_name = field.field_name();
+            schema.append_cell((table_name + "." + field_name).c_str());
           } else {
             schema.append_cell(field.field_name());
           }
