@@ -338,11 +338,6 @@ public:
     return RC::NOTFOUND;
   }
 
-  std::vector<TupleCellSpec *> &speces() override
-  {
-    return speces_;
-  }
-
   int all_c_num() override
   {
     return tuple_->cell_num();

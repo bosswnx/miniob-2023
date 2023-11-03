@@ -564,6 +564,11 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
 
   const AttrType target_type = value_type();
 
+  if (left_value.get_null_or_() || right_value.get_null_or_()) {
+    value.set_null(true);
+    return rc;
+  }
+
   switch (arithmetic_type_) {
     case Type::ADD: {
       if (target_type == AttrType::INTS) {
@@ -592,15 +597,15 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     case Type::DIV: {
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
-          // NOTE: 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
-          value.set_int(numeric_limits<int>::max());
+          // 除以0，设置为NULL
+          value.set_null(true);
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
       } else {
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
-          // NOTE: 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
-          value.set_float(numeric_limits<float>::max());
+          // 除以0，设置为NULL
+          value.set_null(true);
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }

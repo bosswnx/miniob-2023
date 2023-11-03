@@ -406,6 +406,9 @@ Value Value::min_value(AttrType type) {
 
 int Value::get_int() const
 {
+  if (get_null_or_()){
+    return 0;
+  }
   switch (attr_type_) {
     case CHARS: {
       try {
@@ -467,6 +470,9 @@ std::string Value::get_date_str() const
 
 float Value::get_float() const
 {
+  if (get_null_or_()) {
+    return 0;
+  }
   switch (attr_type_) {
     case CHARS: {
       try {
