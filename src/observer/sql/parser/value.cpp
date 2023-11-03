@@ -205,10 +205,10 @@ int Value::compare(const Value &other) const
     if (other.is_null_) {
       return 0;
     } else {
-      return -1;
+      return 1;
     }
   } else if (other.is_null_) {
-    return 1;
+    return -1;
   }
   // if (this->is_null_ || other.is_null_) {
   //   return -1;
