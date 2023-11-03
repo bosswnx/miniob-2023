@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <string>
 
+#include "event/sql_debug.h"
 #include "optimize_stage.h"
 
 #include "common/conf/ini.h"
@@ -26,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/executor/sql_result.h"
 #include "sql/stmt/stmt.h"
 #include "event/sql_event.h"
+#include "sql/stmt/select_stmt.h"
 #include "event/session_event.h"
 
 using namespace std;
@@ -105,6 +107,13 @@ RC OptimizeStage::create_logical_plan(SQLStageEvent *sql_event, unique_ptr<Logic
   Stmt *stmt = sql_event->stmt();
   if (nullptr == stmt) {
     return RC::UNIMPLENMENT;
+  }
+
+  if(stmt->type() == StmtType::SELECT) {
+    SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
+    if (select_stmt->order_by_fields().size() != 0) {
+      sql_debug(sql_event->sql().c_str());
+    }
   }
 
   return logical_plan_generator_.create(stmt, logical_operator);
