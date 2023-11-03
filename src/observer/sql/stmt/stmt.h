@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
 
 class Db;
 
@@ -97,7 +98,11 @@ public:
       return RC::INVALID_ARGUMENT;
     }
     // 如果是*，需要先获得table，然后看其中的fields是不是1，如果不是，报错
-    if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].attribute_name == "*") {
+    RelAttrExpr *attr = nullptr;
+    if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].expr->type() == ExprType::RELATTR) {
+      attr = static_cast<RelAttrExpr *>(sub_select->selection.attributes[0].expr);
+    }
+    if (attr != nullptr && attr->field_name() == "*") {
       int fields_num = 0;
       for (size_t j = 0; j < sub_select->selection.relations.size(); ++j) {
         const char *table_name = sub_select->selection.relations[j].name.c_str();

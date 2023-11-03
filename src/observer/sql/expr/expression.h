@@ -195,8 +195,11 @@ public:
   RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
   RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
 
-  string &table_name() { return table_name_; }
-  string &field_name() { return field_name_; }
+  const string &table_name() const { return table_name_; }
+  const string &field_name() const { return field_name_; }
+
+  void set_table_name(const string &table_name) { table_name_ = table_name; }
+  void set_field_name(const string &field_name) { field_name_ = field_name; }
 
 private:
   std::string table_name_;

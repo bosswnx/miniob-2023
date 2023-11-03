@@ -71,39 +71,22 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
       bool with_table_name = select_stmt->tables().size() > 1;
+      auto &aliases = select_stmt->query_aliases();
       if (select_stmt->is_aggre()) {
         auto &aggre_types = select_stmt->aggre_types();
         for (int i = 0; i < aggre_types.size(); i++) {
           std::string alias = aggre_to_string(aggre_types[i]);
           if (aggre_types[i] != AggreType::CNTALL) {
             alias += "(";
-            auto &query_fields = select_stmt->query_fields();
-            if (query_fields[i].have_field_alias()) {
-              alias += query_fields[i].field_alias();
-            } else {
-              if (with_table_name) {
-                alias += query_fields[i].table_name();
-                alias += ".";
-              }
-              alias += query_fields[i].field_name();
-              alias += ")";
-            }
+            alias += aliases[i];
+            alias += ")";
           }
           schema.append_cell(alias.c_str());
         }
         break;
       }
-
-      for (const Field &field : select_stmt->query_fields()) {
-        if (field.have_field_alias()) {
-          schema.append_cell(field.field_alias());
-        } else {
-          if (with_table_name) {
-            schema.append_cell(field.table_name());
-          } else {
-            schema.append_cell(field.field_name());
-          }
-        }
+      for (int i = 0; i < aliases.size(); i++) {
+        schema.append_cell(aliases[i].c_str());
       }
     } break;
 

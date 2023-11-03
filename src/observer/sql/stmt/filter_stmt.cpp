@@ -54,26 +54,26 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
 }
 
 RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const RelAttrSqlNode &attr, Table *&table, const FieldMeta *&field)
+    const RelAttrExpr *attr, Table *&table, const FieldMeta *&field)
 {
-  if (common::is_blank(attr.relation_name.c_str())) {
+  if (common::is_blank(attr->table_name().c_str())) {
     table = default_table;
   } else if (nullptr != tables) {
-    auto iter = tables->find(attr.relation_name);
+    auto iter = tables->find(attr->table_name().c_str());
     if (iter != tables->end()) {
       table = iter->second;
     }
   } else {
-    table = db->find_table(attr.relation_name.c_str());
+    table = db->find_table(attr->table_name().c_str());
   }
   if (nullptr == table) {
-    LOG_WARN("No such table: attr.relation_name: %s", attr.relation_name.c_str());
+    LOG_WARN("No such table: attr.relation_name: %s", attr->table_name().c_str());
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  field = table->table_meta().field(attr.attribute_name.c_str());
+  field = table->table_meta().field(attr->field_name().c_str());
   if (nullptr == field) {
-    LOG_WARN("no such field in table: table %s, field %s", table->name(), attr.attribute_name.c_str());
+    LOG_WARN("no such field in table: table %s, field %s", table->name(), attr->field_name().c_str());
     table = nullptr;
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
@@ -112,10 +112,7 @@ RC make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string,
   RelAttrExpr *relattr_expr = static_cast<RelAttrExpr *>(expr.get());
   Table *table = nullptr;
   const FieldMeta *field = nullptr;
-  RelAttrSqlNode relattr;
-  relattr.relation_name = relattr_expr->table_name();
-  relattr.attribute_name = relattr_expr->field_name();
-  rc = get_table_and_field(db, default_table, tables, relattr, table, field);
+  rc = get_table_and_field(db, default_table, tables, relattr_expr, table, field);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot find attr");
     return rc;

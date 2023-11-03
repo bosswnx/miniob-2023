@@ -70,10 +70,9 @@ inline std::string aggre_to_string(AggreType aggre_type) {
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;   ///< relation name (may be NULL) 表名
-  std::string attribute_name;  ///< attribute name              属性名
+  Expression *expr;
   std::string alias; ///< attribute alias (may be NULL) 属性别名
-  AggreType aggre_type;
+  AggreType aggre_type = AggreType::NONE;
 };
 
 /**

@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 
 #include "common/log/log.h"
+#include "common/rc.h"
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
 #include "sql/parser/parse_defs.h"
@@ -257,13 +258,7 @@ class ProjectTuple : public Tuple
 {
 public:
   ProjectTuple() = default;
-  virtual ~ProjectTuple()
-  {
-    for (TupleCellSpec *spec : speces_) {
-      delete spec;
-    }
-    speces_.clear();
-  }
+  ~ProjectTuple() override = default;
 
   void set_tuple(Tuple *tuple)
   {
@@ -275,31 +270,36 @@ public:
     return TupleType::PROJECT;
   }
 
-  void add_cell_spec(TupleCellSpec *spec)
+  void add_expr(std::unique_ptr<Expression> &&expr)
   {
-    speces_.push_back(spec);
+    exprs_.push_back(std::move(expr));
   }
   int cell_num() const override
   {
-    return speces_.size();
+    return exprs_.size();
   }
 
   RC cell_at(int index, Value &cell) const override
   {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    if (index < 0 || index >= static_cast<int>(exprs_.size())) {
       return RC::INTERNAL;
     }
     if (tuple_ == nullptr) {
       return RC::INTERNAL;
     }
-
-    const TupleCellSpec *spec = speces_[index];
-    return tuple_->find_cell(*spec, cell);
+    RC rc = RC::SUCCESS;
+    Expression *expr = exprs_[index].get();
+    return expr->get_value(*tuple_, cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
-    return tuple_->find_cell(spec, cell);
+    for (const std::unique_ptr<Expression> &expr : exprs_) {
+      if (0 == strcmp(spec.alias(), expr->name().c_str())) {
+        return expr->get_value(*tuple_, cell);
+      }
+    }
+    return RC::NOTFOUND;
   }
 
 #if 0
@@ -313,7 +313,7 @@ public:
   }
 #endif
 private:
-  std::vector<TupleCellSpec *> speces_;  // 选择的字段
+  std::vector<std::unique_ptr<Expression>> exprs_;  // 选择的字段
   Tuple *tuple_ = nullptr;  // 指向一个其他的 tuple 的派生类
 };
 

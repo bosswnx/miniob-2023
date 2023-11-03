@@ -14,8 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/log/log.h"
 #include "sql/operator/project_physical_operator.h"
+#include "sql/expr/expression.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
+#include <memory>
 
 RC ProjectPhysicalOperator::open(Trx *trx)
 {
@@ -58,6 +60,6 @@ void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta
 {
   // 对单表来说，展示的(alias) 字段总是字段名称，
   // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
-  tuple_.add_cell_spec(spec);
+  std::unique_ptr<Expression> expr(new FieldExpr(table, field_meta));
+  tuple_.add_expr(std::move(expr));
 }

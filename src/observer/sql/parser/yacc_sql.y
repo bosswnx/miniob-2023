@@ -623,6 +623,14 @@ expression:
       $$ = new RelAttrExpr($1, $3);
       $$->set_name(token_name(sql_string, &@$));
     }
+    | '*' {
+      $$ = new RelAttrExpr("", "*");
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | '*' DOT '*' {
+      $$ = new RelAttrExpr("*", "*");
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
@@ -759,79 +767,20 @@ aggre_list:
     ;
 
 rel_attr:
-    ID {
+    expression {
       $$ = new RelAttrSqlNode;
-      $$->relation_name = "";
-      $$->attribute_name = $1;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
+      $$->expr = $1;
     }
-    | ID AS ID {
+    | expression AS ID {
       $$ = new RelAttrSqlNode;
-      $$->relation_name = "";
-      $$->attribute_name = $1;
+      $$->expr = $1;
       $$->alias = $3;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
       free($3);
     }
-    | ID ID {
+    | expression ID {
       $$ = new RelAttrSqlNode;
-      $$->relation_name = "";
-      $$->attribute_name = $1;
+      $$->expr = $1;
       $$->alias = $2;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
-      free($2);
-    }
-    | ID DOT ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = $1;
-      $$->attribute_name = $3;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
-      free($3);
-    }
-    | ID DOT ID AS ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = $1;
-      $$->attribute_name = $3;
-      $$->alias = $5;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
-      free($3);
-      free($5);
-    }
-    | ID DOT ID ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = $1;
-      $$->attribute_name = $3;
-      $$->alias = $4;
-      $$->aggre_type = AggreType::NONE;
-      free($1);
-      free($3);
-      free($4);
-    }
-    | '*' {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = "";
-      $$->attribute_name = "*";
-      $$->aggre_type = AggreType::NONE;
-    }
-    | '*' AS ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = "";
-      $$->attribute_name = "*";
-      $$->alias = $3;
-      $$->aggre_type = AggreType::NONE;
-      free($3);
-    }
-    | '*' ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = "";
-      $$->attribute_name = "*";
-      $$->alias = $2;
-      $$->aggre_type = AggreType::NONE;
       free($2);
     }
     ;

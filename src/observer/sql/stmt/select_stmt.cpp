@@ -13,11 +13,14 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/select_stmt.h"
+#include "common/rc.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "storage/db/db.h"
+#include "storage/field/field.h"
 #include "storage/table/table.h"
 #include <cstddef>
 #include <memory>
@@ -32,14 +35,103 @@ SelectStmt::~SelectStmt()
   }
 }
 
-// 把该表的所有属性（字段）加入到field_metas中
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
+// 把该表的所有属性（字段）加入到 query_exprs 中
+static void wildcard_fields(Table *table, std::vector<std::unique_ptr<Expression>> &query_exprs, 
+    std::vector<Field> &fields, std::vector<string> &query_aliases, bool with_table_name)
 {
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_metas.push_back(Field(table, table_meta.field(i)));
+    query_exprs.emplace_back(new FieldExpr(table, table_meta.field(i)));
+    fields.emplace_back(table, table_meta.field(i));
+    if (with_table_name) {
+      string alias = table->name();
+      alias += ".";
+      alias += table_meta.field(i)->name();
+      query_aliases.push_back(alias);
+    } else {
+      query_aliases.push_back(table_meta.field(i)->name());
+    }
   }
+}
+
+RC SelectStmt::get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    const RelAttrExpr *attr, Table *&table, const FieldMeta *&field)
+{
+  if (common::is_blank(attr->table_name().c_str())) {
+    table = default_table;
+  } else if (nullptr != tables) {
+    auto iter = tables->find(attr->table_name().c_str());
+    if (iter != tables->end()) {
+      table = iter->second;
+    }
+  } else {
+    table = db->find_table(attr->table_name().c_str());
+  }
+  if (nullptr == table) {
+    LOG_WARN("No such table: attr.relation_name: %s", attr->table_name().c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  field = table->table_meta().field(attr->field_name().c_str());
+  if (nullptr == field) {
+    LOG_WARN("no such field in table: table %s, field %s", table->name(), attr->field_name().c_str());
+    table = nullptr;
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+
+  return RC::SUCCESS;
+}
+
+// 递归处理 expression，将其中的 RelAttrExpr 转换为 FieldExpr
+RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
+    std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields)
+{
+  RC rc = RC::SUCCESS;
+   if (expr->type() == ExprType::VALUE) {
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::ARITHMETIC) {
+    ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr.get());
+    if (arith_expr->left() != nullptr) {
+      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->left(), query_fields);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to make field expr");
+        return rc;
+      }
+    }
+    if (arith_expr->right() != nullptr) {
+      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->right(), query_fields);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to make field expr");
+        return rc;
+      }
+    }
+    return rc;
+  }
+  if (expr->type() != ExprType::RELATTR) {
+    LOG_WARN("invalid expr type: %d", expr->type());
+    return RC::INVALID_ARGUMENT;
+  }
+  RelAttrExpr *relattr_expr = static_cast<RelAttrExpr *>(expr.get());
+  if (relattr_expr->field_name() == "*" || relattr_expr->table_name() == "*") {
+    LOG_WARN("can not use * in arithmetic expr");
+    return RC::INVALID_ARGUMENT;
+  }
+  if (tables->size() > 1 && relattr_expr->table_name().empty()) {
+    LOG_WARN("invalid field name while table is *. attr=%s", relattr_expr->field_name().c_str());
+    return RC::SCHEMA_FIELD_MISSING;
+  }
+  Table *table = nullptr;
+  const FieldMeta *field = nullptr;
+  rc = SelectStmt::get_table_and_field(db, default_table, tables, relattr_expr, table, field);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("cannot find attr");
+    return rc;
+  }
+  expr = std::make_unique<FieldExpr>(table, field);
+  query_fields.push_back(Field(table, field));
+  return rc;
 }
 
 RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
@@ -189,9 +281,12 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // }
 
   // collect query fields in `select` statement
-  std::vector<Field> query_fields;
-  std::vector<AggreType> aggre_types;
+  std::vector<std::unique_ptr<Expression>> query_exprs;  // 需要查询的表达式
+  std::vector<std::string> query_aliases;  // 查询的名称
+  std::vector<Field> query_fields;  // 查询需要用到的字段
+  std::vector<AggreType> aggre_types;  // 聚合函数的类型
   int aggre_stat = 0;  //  用于表示当前是否有聚合函数  01->普通  10->聚合
+  bool with_table_name = tables.size() > 1;  // 是否需要表名
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
     aggre_stat |= relation_attr.aggre_type == AggreType::NONE ? 1 : 2;
@@ -200,124 +295,187 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
       return RC::INVALID_ARGUMENT;
     }
 
-    // 如果表名为空，且属性名为*，则将所有表的所有属性加入到query_fields中
-    if (common::is_blank(relation_attr.relation_name.c_str()) &&
-        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
-      if (relation_attr.aggre_type == AggreType::NONE) {
-        if (relation_attr.alias.size()) {  // 如果有别名，报错
-          LOG_WARN("invalid selection. * cannot have alias.");
-          return RC::INVALID_ARGUMENT;
-        }
-        for (Table *table : tables) {
-          // wildcard: 通配符
-          wildcard_fields(table, query_fields);
-        }
-      } else if (relation_attr.aggre_type == AggreType::CNT) {  // CNT可以
-        auto *table = tables[0];
-        auto *field_meta = table->table_meta().field(0);
-        query_fields.push_back(Field(table, field_meta));
-        aggre_types.push_back(AggreType::CNTALL);
-      } else {  // 如果是聚合函数，报错
-        LOG_WARN("invalid selection in aggregation function.");
-        return RC::INVALID_ARGUMENT;
-      }
-
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {  // 如果表名不为空
-      const char *table_name = relation_attr.relation_name.c_str();
-      if (alias2name->find(table_name) != alias2name->end()) {  // 如果表名在name2alias中，说明有别名
-        table_name = (*alias2name)[table_name].c_str();
-      }
-      const char *field_name = relation_attr.attribute_name.c_str();
-
-      if (0 == strcmp(table_name, "*")) {  // 表名为*
-        if (0 != strcmp(field_name, "*")) {  // 属性名不为*，报错
-          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
-        // 和 * 一样
-        if (relation_attr.alias.size()) {
-          LOG_WARN("invalid selection. * cannot have alias.");
-          return RC::INVALID_ARGUMENT;
-        }
-        if (relation_attr.aggre_type == AggreType::NONE) {  // 如果是普通的查询
-          for (Table *table : tables) {
-            wildcard_fields(table, query_fields);
+    // 如果表达式直接就是表名和属性名，那么进行判断（需要支持"*"）
+    if (relation_attr.expr->type() == ExprType::RELATTR) {
+      auto relattr_expr = static_cast<RelAttrExpr *>(relation_attr.expr);
+      // 如果表名为空，且属性名为*，则将所有表的所有属性加入到query_fields中
+      if (relattr_expr->field_name() == "*" && relattr_expr->table_name().empty()) {
+        if (relation_attr.aggre_type == AggreType::NONE) {
+          if (relation_attr.alias.size()) {  // 如果有别名，报错
+            LOG_WARN("invalid selection. * cannot have alias.");
+            return RC::INVALID_ARGUMENT;
           }
-        } else if (relation_attr.aggre_type == AggreType::CNT) {
+          for (Table *table : tables) {
+            // wildcard: 通配符
+            wildcard_fields(table, query_exprs, query_fields, query_aliases, with_table_name);
+          }
+        } else if (relation_attr.aggre_type == AggreType::CNT) {  // CNT可以
           auto *table = tables[0];
           auto *field_meta = table->table_meta().field(0);
-          query_fields.push_back(Field(table, field_meta));
-          aggre_types.push_back(AggreType::CNT);
-        } else {
+          Field field(table, field_meta);
+          query_fields.push_back(field);
+          query_exprs.emplace_back(new FieldExpr(field));
+          if (with_table_name) {
+            string alias = table->name();
+            alias += ".";
+            alias += field_meta->name();
+            query_aliases.push_back(alias);
+          } else {
+            query_aliases.push_back(field_meta->name());
+          }
+          aggre_types.push_back(AggreType::CNTALL);
+        } else {  // 如果是聚合函数，报错
           LOG_WARN("invalid selection in aggregation function.");
           return RC::INVALID_ARGUMENT;
         }
-      } else {  // 表名不是*，是具体的表名
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
 
-        Table *table = iter->second;
-        if (0 == strcmp(field_name, "*")) {
+      } else if (relattr_expr->table_name().size()) {  // 如果表名不为空
+        auto &table_name = relattr_expr->table_name();
+        if (alias2name->find(table_name) != alias2name->end()) {  // 如果表名在name2alias中，说明有别名
+          relattr_expr->set_table_name((*alias2name)[table_name]);
+        }
+        auto &field_name = relattr_expr->field_name();
+
+        if (table_name == "*") {  // 表名为*
+          if (field_name != "*") {  // 属性名不为*，报错
+            LOG_WARN("invalid field name while table is *. attr=%s", field_name.c_str());
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          // 和 * 一样
           if (relation_attr.alias.size()) {
             LOG_WARN("invalid selection. * cannot have alias.");
             return RC::INVALID_ARGUMENT;
           }
-          if (relation_attr.aggre_type == AggreType::NONE) {
-            wildcard_fields(table, query_fields);
+          if (relation_attr.aggre_type == AggreType::NONE) {  // 如果是普通的查询
+            for (Table *table : tables) {
+              wildcard_fields(table, query_exprs, query_fields, query_aliases, with_table_name);
+            }
           } else if (relation_attr.aggre_type == AggreType::CNT) {
+            auto *table = tables[0];
             auto *field_meta = table->table_meta().field(0);
-            query_fields.push_back(Field(table, field_meta));
+            Field field(table, field_meta);
+            query_fields.push_back(field);
+            query_exprs.emplace_back(new FieldExpr(field));
+            if (with_table_name) {
+              string alias = table->name();
+              alias += ".";
+              alias += field_meta->name();
+              query_aliases.push_back(alias);
+            } else {
+              query_aliases.push_back(field_meta->name());
+            }
             aggre_types.push_back(AggreType::CNT);
           } else {
             LOG_WARN("invalid selection in aggregation function.");
             return RC::INVALID_ARGUMENT;
           }
-        } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
+        } else {  // 表名不是*，是具体的表名
+          auto iter = table_map.find(table_name);
+          if (iter == table_map.end()) {
+            LOG_WARN("no such table in from list: %s", table_name.c_str());
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias));
-          if (relation_attr.aggre_type != AggreType::NONE) {
-            aggre_types.push_back(relation_attr.aggre_type);
+          Table *table = iter->second;
+          if (field_name == "*") {
+            if (relation_attr.alias.size()) {
+              LOG_WARN("invalid selection. * cannot have alias.");
+              return RC::INVALID_ARGUMENT;
+            }
+            if (relation_attr.aggre_type == AggreType::NONE) {
+              wildcard_fields(table, query_exprs, query_fields, query_aliases, with_table_name);
+            } else if (relation_attr.aggre_type == AggreType::CNT) {
+              auto *field_meta = table->table_meta().field(0);
+              Field field(table, field_meta);
+              query_fields.push_back(field);
+              query_exprs.emplace_back(new FieldExpr(field));
+              if (with_table_name) {
+                string alias = table->name();
+                alias += ".";
+                alias += field_meta->name();
+                query_aliases.push_back(alias);
+              } else {
+                query_aliases.push_back(field_meta->name());
+              }
+              aggre_types.push_back(AggreType::CNT);
+            } else {
+              LOG_WARN("invalid selection in aggregation function.");
+              return RC::INVALID_ARGUMENT;
+            }
+          } else {
+            const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
+            if (nullptr == field_meta) {
+              LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name.c_str());
+              return RC::SCHEMA_FIELD_MISSING;
+            }
+            Field field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias);
+            query_fields.push_back(field);
+            query_exprs.emplace_back(new FieldExpr(field));
+            if (with_table_name) {
+              string alias = table->name();
+              alias += ".";
+              alias += field_meta->name();
+              query_aliases.push_back(alias);
+            } else {
+              query_aliases.push_back(field_meta->name());
+            }
+            if (relation_attr.aggre_type != AggreType::NONE) {
+              aggre_types.push_back(relation_attr.aggre_type);
+            }
           }
         }
-      }
-    } else {  // 只有属性名，没有表名
-      if (tables.size() != 1) {
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
+      } else {  // 只有属性名，没有表名
+        if (tables.size() != 1) {
+          LOG_WARN("invalid. I do not know the attr's table. attr=%s", relattr_expr->field_name().c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
 
-      Table *table = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
-      if (field_meta->type() == CHARS || field_meta->type() == DATES) {
-        switch (relation_attr.aggre_type) {
-          case AggreType::SUM:
-          case AggreType::AVG:
-            LOG_WARN("invalid aggregation function on CHARS type.");
-            return RC::INVALID_ARGUMENT;
-          default:
-            break;
+        Table *table = tables[0];
+        const FieldMeta *field_meta = table->table_meta().field(relattr_expr->field_name().c_str());
+        if (nullptr == field_meta) {
+          LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relattr_expr->field_name().c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        if (field_meta->type() == CHARS || field_meta->type() == DATES) {
+          switch (relation_attr.aggre_type) {
+            case AggreType::SUM:
+            case AggreType::AVG:
+              LOG_WARN("invalid aggregation function on CHARS type.");
+              return RC::INVALID_ARGUMENT;
+            default:
+              break;
+          }
+        }
+        Field field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias);
+        query_fields.push_back(field);
+        query_exprs.emplace_back(new FieldExpr(field));
+        if (with_table_name) {
+          string alias = table->name();
+          alias += ".";
+          alias += field_meta->name();
+          query_aliases.push_back(alias);
+        } else {
+          query_aliases.push_back(field_meta->name());
+        }
+        if (relation_attr.aggre_type != AggreType::NONE) {
+          aggre_types.push_back(relation_attr.aggre_type);
         }
       }
-      query_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias));
-      if (relation_attr.aggre_type != AggreType::NONE) {
-        aggre_types.push_back(relation_attr.aggre_type);
+      // 否则就是复杂的表达式，将其中的 RelAttrExpr 转换为 FieldExpr 后，直接加入到query_exprs中
+    } else {
+      std::unique_ptr<Expression> expr(relation_attr.expr);
+      expr->set_name(relation_attr.expr->name());
+      RC rc = SelectStmt::make_field_expr(db, tables[0], &table_map, expr, query_fields);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot construct field expr");
+        return rc;
       }
+      query_aliases.push_back(expr->name());
+      query_exprs.emplace_back(std::move(expr));
     }
   }
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
+  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_exprs.size());
 
 
   Table *default_table = nullptr;
@@ -343,7 +501,9 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // TODO add expression copy
   select_stmt->is_aggre_ = aggre_stat == 2;
   select_stmt->tables_.swap(tables);
+  select_stmt->query_exprs_.swap(query_exprs);
   select_stmt->query_fields_.swap(query_fields);
+  select_stmt->query_aliases_.swap(query_aliases);
   select_stmt->aggre_types_.swap(aggre_types);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
