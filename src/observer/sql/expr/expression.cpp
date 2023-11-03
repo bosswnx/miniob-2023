@@ -105,6 +105,9 @@ SubqueryExpr::SubqueryExpr(AttrType attr_type, const char *table_name, const cha
 RC SubqueryExpr::get_value(const Tuple &tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
+  if (logical_operator_ == nullptr && physical_operator_ == nullptr) {
+    return RC::RECORD_EOF;
+  }
   if (physical_operator_ == nullptr) {
     LOG_WARN("physical operator is null");
     return RC::INVALID_ARGUMENT;
@@ -395,10 +398,13 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
     }
     // 关闭算子
     // 可优化 static_cast 潜在的开销
-    rc = subquery_expr->close_physical_operator();
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+    if (subquery_expr->physical_operator() != nullptr) {
+      rc = subquery_expr->close_physical_operator();
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+      }
     }
+
   } else if (left_->type() == ExprType::VALUES || right_->type() == ExprType::VALUES) {
     ValueListExpr *value_list_expr;
     Value* value_list_value;
