@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/aggre_logical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
@@ -40,6 +41,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/expr/expression.h"
+#include "storage/table/table.h"
 
 
 using namespace std;
@@ -99,8 +101,16 @@ RC LogicalPlanGenerator::create_plan(
   const std::vector<Table *> &tables = select_stmt->tables();
   const auto &all_fields = select_stmt->query_fields();
   auto &all_exprs = select_stmt->query_exprs();
+  std::vector<Field> tables_all_fields;
+
   const auto is_aggre = select_stmt->is_aggre();
   for (Table *table : tables) {
+
+    for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
+      const FieldMeta *field_meta = table->table_meta().field(i);
+      tables_all_fields.push_back(Field(table, field_meta));
+    }
+
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
       if (0 == strcmp(field.table_name(), table->name())) {
@@ -144,6 +154,12 @@ RC LogicalPlanGenerator::create_plan(
     logical_operator.swap(aggregation_oper);
   } else {
     logical_operator.swap(project_oper);
+  }
+
+  if (select_stmt->order_by_fields().size() != 0) {
+    unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields));
+    sort_oper->add_child(std::move(logical_operator));
+    logical_operator.swap(sort_oper);
   }
   return RC::SUCCESS;
 }

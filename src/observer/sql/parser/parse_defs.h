@@ -73,7 +73,16 @@ struct RelAttrSqlNode
   Expression *expr;
   std::string alias; ///< attribute alias (may be NULL) 属性别名
   AggreType aggre_type = AggreType::NONE;
+  bool is_asc;
 };
+
+
+/*
+ * @brief 描述一个属性
+ * @ingroup value.is_null
+ * @details 判断是否可以null存储
+*/
+
 
 /**
  * @brief 描述一个relation
@@ -103,6 +112,8 @@ enum CompOp
   NOT_IN,
   EXISTS_,
   NOT_EXISTS_,
+  IS_NOT_,
+  IS_,
   NO_OP,
 };
 
@@ -161,6 +172,8 @@ struct SelectSqlNode
   std::vector<RelationSqlNode>    relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<JoinSqlNode>        joins;         ///< join clause
+  std::vector<RelAttrSqlNode>     order_attrs;   ///< order by clause
+  // std::vector<char> order_types;   /// 1: asc, 2: desc 这个放在 RelAttrSqlNode 中
 };
 
 
@@ -230,6 +243,7 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  bool        is_null;    ///< 是否可以null存储
 };
 
 /**

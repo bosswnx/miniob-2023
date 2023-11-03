@@ -90,6 +90,7 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 
   // 字段类型检查
   auto table_meta_ = table->table_meta();
+
   for (int i = 0; i < field_metas.size(); i++) {
     if(update.targets[i].is_value) {
       if (field_metas[i].type() != update.targets[i].value.attr_type()) {
@@ -97,8 +98,11 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
         AttrType from_type = update.targets[i].value.attr_type();
 
         if (to_type == AttrType::INTS && from_type == AttrType::FLOATS) {
-
-          update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          
+          // update.targets[i].value.set_int((int)update.targets[i].value.get_float());
+          // update.targets[i].value.set_type(AttrType::INTS);
+          // 四舍五入
+          update.targets[i].value.set_int((int)(update.targets[i].value.get_float() + 0.5));
           update.targets[i].value.set_type(AttrType::INTS);
         } else if (to_type == AttrType::FLOATS && from_type == AttrType::INTS) {
 
@@ -112,6 +116,8 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 
           update.targets[i].value.set_string(std::to_string(update.targets[i].value.get_float()).c_str());
           update.targets[i].value.set_type(AttrType::CHARS);
+        } else if (update.targets[i].value.get_null_or_()) {
+           
         } else {
           LOG_WARN("type mismatch. to_type=%d, from_type=%d", to_type, from_type);
           return RC::INVALID_ARGUMENT;
@@ -119,6 +125,7 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
       }
     }
   }
+  
 
   FilterStmt *filter_stmt = nullptr;
   RC rc = FilterStmt::create(db, 

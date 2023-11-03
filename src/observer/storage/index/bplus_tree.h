@@ -536,8 +536,8 @@ public:
    * 即向索引中插入一个值为（user_keys，rid）的键值对
    * @note 这里假设user_keys的内存大小与attr_length 一致
    */
-  RC insert_entry(const char *user_key, const RID *rid);
-  RC insert_entry(const vector<const char *> &user_keys, const RID *rid);
+  RC insert_entry(const char *user_key, const RID *rid, bool is_null = false);
+  RC insert_entry(const vector<const char *> &user_keys, const RID *rid, bool has_null = false);
 
   /**
    * 从IndexHandle句柄对应的索引中删除一个值为（*pData，rid）的索引项
@@ -607,7 +607,7 @@ protected:
   RC redistribute(Frame *neighbor_frame, Frame *frame, Frame *parent_frame, int index);
 
   RC insert_entry_into_parent(LatchMemo &latch_memo, Frame *frame, Frame *new_frame, const char *keys);
-  RC insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *pkey, const RID *rid);
+  RC insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *pkey, const RID *rid, bool has_null = false);
   RC create_new_tree(const char *keys, const RID *rid);
 
   void update_root_page_num(PageNum root_page_num);
@@ -616,8 +616,8 @@ protected:
   RC adjust_root(LatchMemo &latch_memo, Frame *root_frame);
 
 private:
-  common::MemPoolItem::unique_ptr make_keys(const char *user_key, const RID &rid);
-  common::MemPoolItem::unique_ptr make_keys(const vector<const char *> &user_keys, const RID &rid);
+  common::MemPoolItem::unique_ptr make_keys(const char *user_key, const RID &rid, bool has_null = false);
+  common::MemPoolItem::unique_ptr make_keys(const vector<const char *> &user_keys, const RID &rid, bool has_null = false);
   void free_keys(char *keys);
 
 protected:

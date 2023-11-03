@@ -86,6 +86,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         INNER_JOIN
         WHERE
+        ORDER_BY
+        ASC
         IN
         NI // NOT_IN
         EXISTS
@@ -96,6 +98,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LOAD
         DATA
         INFILE
+        NULLABLE
+        NOT_NULL
         EXPLAIN
         UNIQUE
         AS
@@ -112,6 +116,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AVG
         LK
         NLK // NOT_LIKE
+        IS_NOT
+        IS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -131,6 +137,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<RelationSqlNode> *    relation_list;
+  std::vector<RelAttrSqlNode> *     order_by_list;
+  std::vector<RelAttrSqlNode> *     order_by_body;
+  bool                              order_by_type;
   std::vector<std::string> *        ID_list;
   std::vector<JoinSqlNode> *        join_list;
   UpdateSqlNode *                   update_info;
@@ -144,6 +153,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> ID
 %token <string> DATE_STR
 %token <string> SSS
+%token <string> NULL_T
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -153,10 +163,13 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <floats>              float
+
+
 %type <comp>                comp_op
 %type <rel_attr>            rel_attr
 %type <relation>            relation
 %type <attr_infos>          attr_def_list
+%type <number>              opt_null
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
@@ -167,6 +180,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       aggre_attr
 %type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
+%type <order_by_type>       order_by_type
+%type <order_by_body>       order_by_body
+%type <order_by_list>       order_by_list
 %type <join_list>           join_list
 %type <expression>          expression
 %type <expression_list>     expression_list
@@ -394,6 +410,7 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->is_null = false;
       free($1);
     }
     | ID type
@@ -402,9 +419,38 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->is_null = false;
       free($1);
     }
+    | ID type opt_null
+    {
+      $$ = new AttrInfoSqlNode;
+      $$->type = (AttrType)$2;
+      $$->name = $1;
+      $$->length = 4;
+      $$->is_null = $3;
+      free($1);
+      
+    }
+    | ID type LBRACE number RBRACE opt_null
+    {
+      $$ = new AttrInfoSqlNode;
+      $$->type = (AttrType)$2;
+      $$->name = $1;
+      $$->length = $4;
+      $$->is_null = $6;
+      free($1);
+      
+    }
     ;
+opt_null:
+	NOT_NULL {
+		$$ = false;
+	}
+	| NULLABLE {
+		$$ = true;
+	}
+	; 
 number:
     P_INT       {$$ = $1;}
     | '-' P_INT   {$$ = -$2;}
@@ -470,6 +516,9 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+    }
+    |NULLABLE {
+      $$ = new Value(true, true);
     }
     ;
     
@@ -541,8 +590,57 @@ update_value_list:
       delete $4;
     };
 
+order_by_type:
+    /* empty */
+    {
+      $$ = 1;
+    }
+    | ASC {
+      $$ = 1;
+    }
+    | DESC {
+      $$ = 0;
+    }
+    ;
+
+order_by_body:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA rel_attr order_by_type order_by_body
+    {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $2->is_asc = $3;
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
+order_by_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ORDER_BY rel_attr order_by_type order_by_body
+    {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $2->is_asc = $3;
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
-    SELECT select_attr FROM relation rel_list join_list where
+    SELECT select_attr FROM relation rel_list join_list where order_by_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -578,6 +676,13 @@ select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_li
         /* delete $7; */
       }
       delete $4;
+
+      if ($8 != nullptr) {
+        $$->selection.order_attrs.swap(*$8);
+        // reverse
+        std::reverse($$->selection.order_attrs.begin(), $$->selection.order_attrs.end());
+        delete $8;
+      }
     }
     ;
 calc_stmt:
@@ -1098,6 +1203,8 @@ comp_op:
     | LK { $$ = LIKE; }
     | NLK { $$ = NOT_LIKE; }
     | NE { $$ = NOT_EQUAL; }
+    | IS_NOT { $$ = IS_NOT_; }
+    | IS { $$ = IS_; }
     ;
 
 load_data_stmt:

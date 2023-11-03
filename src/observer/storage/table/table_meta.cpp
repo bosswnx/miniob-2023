@@ -58,7 +58,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   RC rc = RC::SUCCESS;
   
-  int field_offset = 0;
+  int field_offset = field_num; // 记录null的bitmap的长度。[null_bitmap | record_data]
   int trx_field_num = 0;
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (trx_fields != nullptr) {
@@ -66,7 +66,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false/*visible*/);
+      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false/*visible*/, field_meta.is_null(), i);
       field_offset += field_meta.len();
     }
 
@@ -78,7 +78,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   for (int i = 0; i < field_num; i++) {
     const AttrInfoSqlNode &attr_info = attributes[i];
     rc = fields_[i + trx_field_num].init(attr_info.name.c_str(), 
-            attr_info.type, field_offset, attr_info.length, true/*visible*/);
+            attr_info.type, field_offset, attr_info.length, true/*visible*/, attr_info.is_null, i);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
       return rc;
@@ -88,6 +88,8 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   }
 
   record_size_ = field_offset;
+
+  record_size_ += field_num; // 记录null的bitmap的长度。[null_bitmap | record_data]
 
   table_id_ = table_id;
   name_     = name;
@@ -291,7 +293,7 @@ int TableMeta::deserialize(std::istream &is)
     FieldMeta &field = fields[i];
 
     const Json::Value &field_value = fields_value[i];
-    rc = FieldMeta::from_json(field_value, field);
+    rc = FieldMeta::from_json(field_value, field,i);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to deserialize table meta. table name =%s", table_name.c_str());
       return -1;

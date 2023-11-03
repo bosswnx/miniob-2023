@@ -22,6 +22,7 @@ class LogicalOperator;
 class PhysicalOperator;
 class Trx;
 
+#include "sql/parser/parse_defs.h"
 
 using namespace std;
 
@@ -221,7 +222,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   // 这里把 like 算作一种特殊的算符（comporator）
   if (comp_ == CompOp::LIKE) {
     if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
-      LOG_PANIC("like operator only support string type now");
+      LOG_PANIC("like operator only support string type now");      
       return RC::INVALID_ARGUMENT;
     }
     result = left.like(left.data(), right.data());
@@ -232,6 +233,26 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       return RC::INVALID_ARGUMENT;
     }
     result = !left.like(left.data(), right.data());
+    return rc;
+  }
+  if(comp_ == CompOp::IS_NOT_ ) {
+    if(left.get_null_or_() == false) {
+      result = true;
+    } else {
+      result = false;
+    }
+    return rc;
+  }
+  if(comp_ == CompOp::IS_ ) {
+    if(left.get_null_or_() == true || (right.get_null_or_() == true && left.get_null_or_() == right.get_null_or_())) {
+      result = true;
+    } else {
+      result = false;
+    }
+    return rc;
+  }
+  if(left.get_null_or_() == true || right.get_null_or_() == true) {
+    result = false;
     return rc;
   }
   int cmp_result = left.compare(right);

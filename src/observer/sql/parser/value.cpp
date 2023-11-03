@@ -126,6 +126,11 @@ void Value::set_string(const char *s, int len /*= 0*/)
 
 void Value::set_value(const Value &value)
 {
+  if(value.get_null_or_() == true)
+  {
+    set_null(true);
+    return;
+  }
   switch (value.attr_type_) {
     case INTS: {
       set_int(value.get_int());
@@ -164,8 +169,12 @@ const char *Value::data() const
 }
 
 std::string Value::to_string() const
-{
+{ 
   std::stringstream os;
+  if (get_null_or_() == true){
+    os << "NULL";
+    return os.str();
+  }
   switch (attr_type_) {
     case INTS: {
       os << num_value_.int_value_;
@@ -191,6 +200,16 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
+  if (this->is_null_) {
+    // null 是最小的
+    if (other.is_null_) {
+      return 0;
+    } else {
+      return -1;
+    }
+  } else if (other.is_null_) {
+    return 1;
+  }
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
@@ -246,6 +265,7 @@ int Value::compare(const Value &other) const
     int32_t other_date = other.get_date().get_date_value();
     return common::compare_int((void *)&this_date, (void *)&other_date);
   }
+
   // todo: 还要实现date等其他类型的比较
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
@@ -321,6 +341,7 @@ bool Value::like(const char* s, const char *tmplt_s) const {
 }
 
 bool Value::check_date(date val) const {
+  
   int year = 0;
   int month = 0;
   int day = 0;
@@ -443,6 +464,7 @@ std::string Value::get_date_str() const
   return res;
 }
 
+
 float Value::get_float() const
 {
   switch (attr_type_) {
@@ -522,3 +544,13 @@ bool Value::get_boolean() const
   return false;
 }
 
+// overide operator
+bool Value::operator<(const Value &other) const
+{
+  return compare(other) < 0;
+}
+
+bool Value::operator>(const Value &other) const
+{
+  return compare(other) > 0;
+}

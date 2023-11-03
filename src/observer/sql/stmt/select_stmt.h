@@ -72,6 +72,7 @@ public:
   }
   bool is_aggre() const { return is_aggre_; }
   const std::vector<AggreType> &aggre_types() const { return aggre_types_; }
+  const std::vector<Field> &order_by_fields() const { return order_by_fields_; }
 
   static RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     const RelAttrExpr *attr, Table *&table, const FieldMeta *&field);
@@ -87,4 +88,5 @@ private:
   std::vector<Table *> tables_;
   bool is_aggre_;
   FilterStmt *filter_stmt_ = nullptr;
+  std::vector<Field> order_by_fields_;
 };

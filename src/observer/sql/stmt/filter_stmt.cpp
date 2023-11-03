@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
@@ -126,7 +127,6 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     
 {
   RC rc = RC::SUCCESS;
-
   CompOp comp = condition.comp;
   if (comp < EQUAL_TO || comp >= NO_OP) {
     LOG_WARN("invalid compare operator : %d", comp);
@@ -154,7 +154,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
-
+  
   // 左 filterObj
   if (condition.sub_select == 1) { // 如果是子查询
     if(condition.left_sub_select->flag == SCF_SELECT) {

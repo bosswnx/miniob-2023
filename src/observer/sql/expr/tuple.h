@@ -105,6 +105,12 @@ public:
    */
   virtual int cell_num() const = 0;
 
+  // 别用我，用cell_num()
+  virtual int all_c_num()
+  {
+    return -1;
+  }
+
   /**
    * @brief 获取指定位置的Cell
    * 
@@ -112,6 +118,25 @@ public:
    * @param[out] cell  返回的Cell
    */
   virtual RC cell_at(int index, Value &cell) const = 0;
+
+  // 别用我，用cell_at()
+  virtual RC all_c_at(int index, Value &cell)
+  {
+    return RC::NOTFOUND;
+  }
+
+  // 不要用我
+  virtual std::vector<TupleCellSpec *> &speces()
+  {
+    static std::vector<TupleCellSpec *> empty;
+    return empty;
+  }
+
+  virtual std::vector<TupleCellSpec *> &all_speces()
+  {
+    static std::vector<TupleCellSpec *> empty;
+    return empty;
+  }
 
   virtual TupleType type() const
   {
@@ -176,6 +201,7 @@ public:
   void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   {
     table_ = table;
+    speces_.clear();
     this->speces_.reserve(fields->size());
     for (const FieldMeta &field : *fields) {
       speces_.push_back(new FieldExpr(table, &field));
@@ -197,6 +223,16 @@ public:
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
     cell.set_type(field_meta->type());
+    //this->record_,判断第index个字段是否为为1，如果为1则将cell.is_null_置为true
+    if(this->record_->data()[index] == 1)
+    {
+      cell.set_null(true);
+    }
+    else
+    {
+      cell.set_null(false);
+    }
+    
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;
   }
@@ -300,6 +336,21 @@ public:
       }
     }
     return RC::NOTFOUND;
+  }
+
+  std::vector<TupleCellSpec *> &speces() override
+  {
+    return speces_;
+  }
+
+  int all_c_num() override
+  {
+    return tuple_->cell_num();
+  }
+
+  RC all_c_at(int index, Value &cell) override
+  {
+    return tuple_->cell_at(index, cell);
   }
 
 #if 0
@@ -408,6 +459,61 @@ private:
   std::vector<Value> cells_;
 };
 
+
+class SortProjectTuple : public Tuple
+{
+  public:
+  SortProjectTuple() = default;
+  virtual ~SortProjectTuple()
+  {
+  }
+
+  void set_tuple(ValueListTuple *tuple)
+  {
+    this->tuple_ = tuple;
+  }
+
+  TupleType type() const override
+  {
+    return TupleType::PROJECT;
+  }
+
+  int cell_num() const override
+  {
+    return position.size();
+  }
+
+  RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= position.size()) {
+      return RC::INTERNAL;
+    }
+    if (tuple_ == nullptr) {
+      return RC::INTERNAL;
+    }
+
+    const int pos = position[index];
+    return tuple_->cell_at(pos, cell);
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  {
+    return tuple_->find_cell(spec, cell);
+  }
+
+  void add_position(int pos)
+  {
+    position.push_back(pos);
+  }
+
+private:
+  std::vector<int> position;
+  ValueListTuple *tuple_ = nullptr; 
+
+};
+
+
+
 /**
  * @brief 将两个tuple合并为一个tuple
  * @ingroup Tuple
@@ -436,7 +542,7 @@ public:
   RC cell_at(int index, Value &value) const override
   {
     const int left_cell_num = left_->cell_num();
-    if (index > 0 && index < left_cell_num) {
+    if (index >= 0 && index < left_cell_num) {
       return left_->cell_at(index, value);
     }
 

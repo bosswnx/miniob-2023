@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/parser/parse.h"
+#include "sql/parser/parse_defs.h"
 
 class Record;
 class Table;
