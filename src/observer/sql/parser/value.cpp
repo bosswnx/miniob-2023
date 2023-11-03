@@ -200,19 +200,19 @@ std::string Value::to_string() const
 
 int Value::compare(const Value &other) const
 {
-  // if (this->is_null_) {
-  //   // null 是最小的
-  //   if (other.is_null_) {
-  //     return 0;
-  //   } else {
-  //     return -1;
-  //   }
-  // } else if (other.is_null_) {
-  //   return 1;
-  // }
-  if (this->is_null_ || other.is_null_) {
-    return -1;
+  if (this->is_null_) {
+    // null 是最小的
+    if (other.is_null_) {
+      return 0;
+    } else {
+      return -1;
+    }
+  } else if (other.is_null_) {
+    return 1;
   }
+  // if (this->is_null_ || other.is_null_) {
+  //   return -1;
+  // }
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {

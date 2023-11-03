@@ -51,7 +51,7 @@ public:
 
   const char *get_data(const Record &record);
 
-  const bool is_asc() {return is_asc_;}
+  const bool is_asc() const {return is_asc_;}
 
 private:
   const Table *table_ = nullptr;  // 字段所在的表
