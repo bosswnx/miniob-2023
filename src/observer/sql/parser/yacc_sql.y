@@ -720,6 +720,22 @@ expression:
       $$ = new ValueExpr(Value($1));
       $$->set_name(token_name(sql_string, &@$));
     }
+    | DATE_STR {
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      $$ = new ValueExpr(Value(date(tmp)));
+      free(tmp);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | SSS {
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      $$ = new ValueExpr(Value(tmp));
+      free(tmp);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | NULL_T {
+      $$ = new ValueExpr(Value(true, true));
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | ID {
       $$ = new RelAttrExpr("", $1);
       $$->set_name(token_name(sql_string, &@$));
