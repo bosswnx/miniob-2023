@@ -131,6 +131,14 @@ RC SortPhysicalOperator::next() {
         tuple_.set_tuple(&tuples_[index_++]);
         return RC::SUCCESS;
     } else {
+        // wocaonima BEGIN
+        order_by_fields_.clear();
+        order_by_field_indexes_.clear();
+        tables_all_fields_.clear();
+        query_fields_.clear();
+        tuples_.clear();
+        index_ = 0;
+        // wocaonima END
         return RC::RECORD_EOF;
     }
 }

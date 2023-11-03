@@ -44,5 +44,5 @@ private:
   SortProjectTuple tuple_;
 
   std::vector<ValueListTuple> tuples_;  // 用于存储所有的 tuple
-  int index_;
+  int index_ = 0;
 };
