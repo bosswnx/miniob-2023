@@ -39,7 +39,7 @@ RC InsertPhysicalOperator::open(Trx *trx)
   return rc;
 }
 
-RC InsertPhysicalOperator::next()
+RC InsertPhysicalOperator::next(Tuple *main_query_tuple)
 {
   return RC::RECORD_EOF;
 }

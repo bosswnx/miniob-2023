@@ -38,6 +38,7 @@ enum class TupleType
   EXPRESSION,
   VALUE_LIST,
   JOINED,
+  NONE,
 };
 
 /**
@@ -566,4 +567,24 @@ public:
 private:
   Tuple *left_ = nullptr;
   Tuple *right_ = nullptr;
+};
+
+
+// 占位符
+class NoneTuple : public Tuple {
+public: 
+  NoneTuple() = default;
+  virtual ~NoneTuple() = default;
+  int cell_num() const override {
+    return 0;
+  }
+  TupleType type() const override {
+    return TupleType::NONE;
+  }
+  RC cell_at(int index, Value &value) const override {
+    return RC::NOTFOUND;
+  }
+  RC find_cell(const TupleCellSpec &spec, Value &value) const override {
+    return RC::NOTFOUND;
+  }
 };

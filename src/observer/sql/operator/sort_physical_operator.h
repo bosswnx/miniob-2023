@@ -28,7 +28,7 @@ public:
   std::string name() const override { return "Unimplemented";}
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple *main_query_tuple = nullptr) override;
   RC close() override;
 
   Tuple * current_tuple() override { return &tuple_; }
@@ -44,5 +44,5 @@ private:
   SortProjectTuple tuple_;
 
   std::vector<ValueListTuple> tuples_;  // 用于存储所有的 tuple
-  int index_;
+  int index_ = 0;
 };

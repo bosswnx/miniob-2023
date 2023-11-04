@@ -154,7 +154,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
-  
+
   // 左 filterObj
   if (condition.sub_select == 1) { // 如果是子查询
     if(condition.left_sub_select->flag == SCF_SELECT) {

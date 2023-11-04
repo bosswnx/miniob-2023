@@ -32,7 +32,7 @@ RC ExplainPhysicalOperator::close()
   return RC::SUCCESS;
 }
 
-RC ExplainPhysicalOperator::next()
+RC ExplainPhysicalOperator::next(Tuple *main_query_tuple)
 {
   if (!physical_plan_.empty()) {
     return RC::RECORD_EOF;

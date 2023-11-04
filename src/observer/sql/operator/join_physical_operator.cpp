@@ -35,7 +35,7 @@ RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
   return rc;
 }
 
-RC NestedLoopJoinPhysicalOperator::next()
+RC NestedLoopJoinPhysicalOperator::next(Tuple *main_query_tuple)
 {
   bool left_need_step = (left_tuple_ == nullptr);
   RC rc = RC::SUCCESS;

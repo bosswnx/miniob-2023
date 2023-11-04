@@ -72,7 +72,7 @@ public:
   virtual PhysicalOperatorType type() const = 0;  // 输出物理算子类型
 
   virtual RC open(Trx *trx) = 0;  // 打开算子
-  virtual RC next() = 0;  // 每个算子都需要实现的函数，调用一次函数则执行一次算子
+  virtual RC next(Tuple *main_query_tuple = nullptr) = 0;  // 每个算子都需要实现的函数，调用一次函数则执行一次算子
   virtual RC close() = 0;  // 关闭算子
 
   virtual Tuple *current_tuple() = 0;  // 当前的 tuple

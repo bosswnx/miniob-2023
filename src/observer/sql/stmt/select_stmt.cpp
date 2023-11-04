@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/select_stmt.h"
 #include "common/rc.h"
 #include "sql/expr/expression.h"
+#include "event/sql_debug.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
@@ -226,7 +227,8 @@ RC SelectStmt::check_have_aggre(const std::unique_ptr<Expression> &expr, bool &i
 
 RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
     std::shared_ptr<std::unordered_map<string, string>> name2alias,
-    std::shared_ptr<std::unordered_map<string, string>> alias2name)
+    std::shared_ptr<std::unordered_map<string, string>> alias2name,
+    std::shared_ptr<std::vector<string>> main_relation_names) // main_relations_name: 外层查询的relations name
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
@@ -238,18 +240,84 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
     return RC::INVALID_ARGUMENT;
   }
 
+  bool tag_ = false;
   if (name2alias == nullptr) {
     name2alias = std::make_shared<std::unordered_map<string, string>>();
+    tag_ = true;
   }
   if (alias2name == nullptr) {
     alias2name = std::make_shared<std::unordered_map<string, string>>();
+    tag_ = true;
   }
+  if (main_relation_names == nullptr) {
+    main_relation_names = std::make_shared<std::vector<string>>();
+    tag_ = true;
+  }
+
+
+  // 检查 conditions 内的 relation 是否存在（包括可能的父查询）
+  // 如果有非本查询的 relation，将其转换为 sub_select
+  if (!tag_) {
+      for (auto &condition: select_sql.conditions) {
+        if (condition.left_is_attr && 
+            (alias2name->find(condition.left_attr.relation_name) != alias2name->end() || 
+            main_relation_names->end() != std::find(main_relation_names->begin(), main_relation_names->end(), condition.left_attr.relation_name))
+          ) {
+          // 如果是属性，且 relation 在 alias2name 中或者 name2alias 中，说明是父查询的 relation
+          // condition.left_is_attr = false;
+          // SubSelectSqlNode *sub_select = new SubSelectSqlNode();
+          // sub_select->flag = SCF_SELECT;
+          // sub_select->selection.attributes.push_back(condition.left_attr);
+          // RelationSqlNode relation;
+          condition.is_left_main_ = true;
+          if (alias2name->find(condition.left_attr.relation_name) != alias2name->end()) {
+            // 如果在 alias2name 中，说明是别名，将其转换为 name
+            // relation.name = (*alias2name)[condition.left_attr.relation_name];
+            condition.left_attr.relation_name = (*alias2name)[condition.left_attr.relation_name];
+          } else {
+            // relation.name = condition.left_attr.relation_name;
+            condition.left_attr.relation_name = condition.left_attr.relation_name;
+          }
+          // sub_select->selection.relations.push_back(relation);
+          // condition.left_sub_select = sub_select;
+          // condition.sub_select = 1;
+        } 
+        if (condition.right_is_attr &&
+             (alias2name->find(condition.right_attr.relation_name) != alias2name->end() || 
+             main_relation_names->end() != std::find(main_relation_names->begin(), main_relation_names->end(), condition.right_attr.relation_name))
+          ) {
+          // 如果是属性，且 relation 在 alias2name 中或者 name2alias 中，说明是父查询的 relation
+          // condition.right_is_attr = false;
+          // SubSelectSqlNode *sub_select = new SubSelectSqlNode();
+          // sub_select->flag = SCF_SELECT;
+          // sub_select->selection.attributes.push_back(condition.right_attr);
+          // RelationSqlNode relation;
+          condition.is_right_main_ = true;
+          if (alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
+            // 如果在 alias2name 中，说明是别名，将其转换为 name
+            // relation.name = (*alias2name)[condition.right_attr.relation_name];
+            condition.right_attr.relation_name = (*alias2name)[condition.right_attr.relation_name];
+          } else {
+            // relation.name = condition.right_attr.relation_name;
+            condition.right_attr.relation_name = condition.right_attr.relation_name;
+          }
+          // sub_select->selection.relations.push_back(relation);
+          // condition.right_sub_select = sub_select;
+          // condition.sub_select = 2;
+        }
+      }
+  }
+
+
+  // 上下的相对顺序必须这样⬆️ ⬇️。
+
 
   for (size_t i = 0; i < select_sql.relations.size(); ++i) {
     if (select_sql.relations[i].alias.size()) {
       (*alias2name)[select_sql.relations[i].alias] = select_sql.relations[i].name;
       (*name2alias)[select_sql.relations[i].name] = select_sql.relations[i].alias;
     }
+    main_relation_names->push_back(select_sql.relations[i].name);
   }
 
   // 将 where 语句 conditions 里 relation 的 alias 还原为 name
@@ -265,10 +333,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   //   }
   // }
 
+
   // 子查询，先检测conditions中是否有子查询condition，如果有，先为其转成stmt放在condition node中备用。
   for (size_t i = 0; i < select_sql.conditions.size(); ++i) {
     if (select_sql.conditions[i].sub_select != 0) {
-      if (select_sql.conditions[i].sub_select == 1) { // 1为左子查询
+      if (select_sql.conditions[i].sub_select == 1 || select_sql.conditions[i].sub_select == 3) { // 1为左子查询
         auto subquery = select_sql.conditions[i].left_sub_select;
         if (subquery->flag != SCF_SELECT && subquery->flag != SCF_SOME_VALUES) {
           LOG_WARN("invalid subquery type");
@@ -276,14 +345,14 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
         }
         if (subquery->flag == SCF_SOME_VALUES) break; // 如果子查询是 SOME VALUES，不需要生成 stmt
         
-        RC rc_ = check_sub_select_legal(db, subquery);
+        RC rc_ = check_sub_select_legal(db, subquery, select_sql.relations);
         if (rc_ != RC::SUCCESS) {
           return rc_;
         }
 
         Stmt *subquery_stmt = nullptr;
         // 生成左子查询的 stmt （如果有的话）
-        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name);
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name, main_relation_names);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot construct subquery stmt");
           return rc;
@@ -292,7 +361,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
         auto *subquery_select_stmt = dynamic_cast<SelectStmt *>(subquery_stmt);
         select_sql.conditions[i].left_select_stmt = subquery_select_stmt;
       }
-      if (select_sql.conditions[i].sub_select == 2) { // 2为右子查询
+      if (select_sql.conditions[i].sub_select == 2 || select_sql.conditions[i].sub_select == 3) { // 2为右子查询
         auto subquery = select_sql.conditions[i].right_sub_select;
         if (subquery->flag != SCF_SELECT && subquery->flag != SCF_SOME_VALUES) {
           LOG_WARN("invalid subquery type");
@@ -301,14 +370,14 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
 
         if (subquery->flag == SCF_SOME_VALUES) break; // 如果子查询是 SOME VALUES，不需要生成 stmt
 
-        RC rc_ = check_sub_select_legal(db, subquery);
+        RC rc_ = check_sub_select_legal(db, subquery, select_sql.relations);
         if (rc_ != RC::SUCCESS) {
           return rc_;
         }
 
         Stmt *subquery_stmt = nullptr;
         // 生成右子查询的 stmt （如果有的话）
-        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name);
+        RC rc = SelectStmt::create(db, subquery->selection, subquery_stmt, name2alias, alias2name, main_relation_names);
         if (rc != RC::SUCCESS) {
           LOG_WARN("cannot construct subquery stmt");
           return rc;
@@ -565,6 +634,9 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
 
   // order by
   std::vector<Field> order_by_fields;
+  // if (select_sql.order_attrs.size() != 0) {
+  //   sql_debug()
+  // }
   for (int i=0; i<select_sql.order_attrs.size(); ++i) {
     const RelAttrSqlNode &relation_attr = select_sql.order_attrs[i];
     auto *relattr_expr = static_cast<RelAttrExpr*>(relation_attr.expr);

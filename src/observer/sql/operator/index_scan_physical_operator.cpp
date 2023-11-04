@@ -77,7 +77,7 @@ RC IndexScanPhysicalOperator::open(Trx *trx)
   return RC::SUCCESS;
 }
 
-RC IndexScanPhysicalOperator::next()
+RC IndexScanPhysicalOperator::next(Tuple *main_query_tuple)
 {
   RID rid;
   RC rc = RC::SUCCESS;

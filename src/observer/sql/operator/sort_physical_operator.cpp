@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "storage/table/table.h"
 #include "storage/trx/trx.h"
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -74,7 +75,7 @@ RC SortPhysicalOperator::open(Trx *trx) {
     std::stable_sort(tuples_.begin(), tuples_.end(), [this](const ValueListTuple &a, const ValueListTuple &b) {
         int ret = 0;
         for (int i=0; i<order_by_fields_.size(); ++i) {
-            Value cell_a, cell_b;
+          Value cell_a, cell_b;
             // a.cell_at(order_by_fields_[i].meta()->index(), cell_a);
             // b.cell_at(order_by_fields_[i].meta()->index(), cell_b);
             a.cell_at(order_by_field_indexes_[i], cell_a);
@@ -107,11 +108,37 @@ RC SortPhysicalOperator::open(Trx *trx) {
   return RC::SUCCESS;
 }
 
-RC SortPhysicalOperator::next() {
+bool cmp(const ValueListTuple &a, const ValueListTuple &b, std::vector<Field> &order_by_fields) {
+  int ret = 0;
+  for (int i=0; i<order_by_fields.size(); ++i) {
+    Value cell_a, cell_b;
+    a.cell_at(i, cell_a);
+    b.cell_at(i, cell_b);
+    ret = cell_a.compare(cell_b);
+    if (ret != 0) {
+      if (order_by_fields[i].is_asc()) {
+        return ret < 0;
+      } else {
+        return ret > 0;
+      }
+    }
+  }
+  return ret < 0;
+}
+
+RC SortPhysicalOperator::next(Tuple *main_query_tuple) {
     if (index_ < tuples_.size()) {
         tuple_.set_tuple(&tuples_[index_++]);
         return RC::SUCCESS;
     } else {
+        // wocaonima BEGIN
+        order_by_fields_.clear();
+        order_by_field_indexes_.clear();
+        tables_all_fields_.clear();
+        query_fields_.clear();
+        tuples_.clear();
+        index_ = 0;
+        // wocaonima END
         return RC::RECORD_EOF;
     }
 }

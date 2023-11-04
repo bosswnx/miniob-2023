@@ -39,7 +39,7 @@ RC AggregationPhysicalOperator::open(Trx *trx) {
   return RC::SUCCESS;
 }
 
-RC AggregationPhysicalOperator::next() {
+RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
   if (finished_) {
     return RC::RECORD_EOF;
   }
@@ -50,7 +50,7 @@ RC AggregationPhysicalOperator::next() {
   }
   auto *child = children_[0].get();
   vector<Value> cells;
-  while ((rc = child->next()) == RC::SUCCESS) {
+  while ((rc = child->next(main_query_tuple)) == RC::SUCCESS) {
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
     if (cells.size() == 0) {
       cells.resize(tuple->cell_num());
@@ -65,6 +65,10 @@ RC AggregationPhysicalOperator::next() {
       tuple->cell_at(i, cell);
       cells[i] = cell;
     }
+  }
+  if (rc != RC::RECORD_EOF) {
+    LOG_WARN("failed to get next record: %s", strrc(rc));
+    return rc;
   }
   tuple_.set_cells(cells);
   // TODO: rtx

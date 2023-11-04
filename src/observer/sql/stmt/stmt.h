@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include "common/log/log.h"
 #include "sql/expr/expression.h"
+#include <vector>
 
 class Db;
 
@@ -90,7 +91,7 @@ public:
   static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt);
 
 
-  static RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select)
+  static RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select, std::vector<RelationSqlNode> main_query_relations)
   {
     // 当左子查询的属性不止一个时，报错（注意这里没有判断*，需要到后面的步骤判断）
     if (sub_select->selection.attributes.size() != 1) {

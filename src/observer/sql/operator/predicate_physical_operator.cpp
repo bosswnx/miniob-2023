@@ -50,10 +50,12 @@ RC PredicatePhysicalOperator::open(Trx *trx)
   //   expression_ = std::move(expr_tmp);
   // }
 
+  trx_ = trx;
+
   return children_[0]->open(trx);
 }
 
-RC PredicatePhysicalOperator::next()
+RC PredicatePhysicalOperator::next(Tuple *main_query_tuple)
 {
   RC rc = RC::SUCCESS;
   PhysicalOperator *oper = children_.front().get();
@@ -66,7 +68,15 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
-    rc = expression_->get_value(*tuple, value); // comparator expression
+
+    if (main_query_tuple != nullptr) {
+      JoinedTuple *tuple_combines_with_main_tuple = new JoinedTuple();
+      tuple_combines_with_main_tuple->set_left(tuple);
+      tuple_combines_with_main_tuple->set_right(main_query_tuple);
+      tuple = tuple_combines_with_main_tuple;
+    }
+
+    rc = expression_->get_value(*tuple, value, trx_); // comparator expression
     if (rc != RC::SUCCESS) {
       return rc;
     }

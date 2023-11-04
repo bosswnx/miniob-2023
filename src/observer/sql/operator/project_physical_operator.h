@@ -47,7 +47,7 @@ public:
   }
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple *main_query_tuple = nullptr) override;
   RC close() override;
 
   int cell_num() const

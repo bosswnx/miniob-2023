@@ -80,6 +80,32 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
       }
     }
 
+    // 对values参照field_matas进行类型转换
+    for (int i=0; i<values_.size(); ++i) {
+      if (values_[i].get_null_or_()) {
+        continue;
+      }
+      if (values_[i].attr_type() == field_metas_[i].type()) {
+        continue;
+      }
+      if (values_[i].attr_type() == AttrType::INTS && field_metas_[i].type() == FLOATS) {
+        values_[i].set_float((float)values_[i].get_int());
+      } else if (values_[i].attr_type() == AttrType::FLOATS && field_metas_[i].type() == INTS) {
+        values_[i].set_int((int)values_[i].get_float());
+      } else if (values_[i].attr_type() == AttrType::CHARS && field_metas_[i].type() == INTS) {
+        values_[i].set_int(atoi(values_[i].get_string().c_str()));
+      } else if (values_[i].attr_type() == AttrType::CHARS && field_metas_[i].type() == FLOATS) {
+        values_[i].set_float(atof(values_[i].get_string().c_str()));
+      } else if (values_[i].attr_type() == AttrType::INTS && field_metas_[i].type() == CHARS) {
+        values_[i].set_string(std::to_string(values_[i].get_int()).c_str());
+      } else if (values_[i].attr_type() == AttrType::FLOATS && field_metas_[i].type() == CHARS) {
+        values_[i].set_string(std::to_string(values_[i].get_float()).c_str());
+      } else {
+        LOG_WARN("failed to convert value type: %s", strrc(RC::INVALID_ARGUMENT));
+        return RC::INVALID_ARGUMENT;
+      }
+    }
+
     std::unique_ptr<PhysicalOperator> &child = children_[0];
     RC rc = child->open(trx);
     if (rc != RC::SUCCESS) {
@@ -91,7 +117,7 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
     return RC::SUCCESS;
 }
 
-RC UpdatePhysicalOperator::next()
+RC UpdatePhysicalOperator::next(Tuple *main_query_tuple)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {

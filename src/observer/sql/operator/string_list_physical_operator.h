@@ -57,7 +57,7 @@ public:
     return RC::SUCCESS;
   }
 
-  RC next() override
+  RC next(Tuple *main_query_tuple = nullptr) override
   {
     if (!started_) {
       started_ = true;

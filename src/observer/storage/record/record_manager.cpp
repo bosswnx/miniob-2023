@@ -602,7 +602,7 @@ RC RecordFileScanner::fetch_next_record()
     record_page_handler_.cleanup();
     rc = record_page_handler_.init(*disk_buffer_pool_, page_num, readonly_);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to init record page handler. page_num=%d, rc=%s", page_num, strrc(rc));
+      // LOG_WARN("failed to init record page handler. page_num=%d, rc=%s", page_num, strrc(rc));
       return rc;
     }
 
@@ -648,6 +648,7 @@ RC RecordFileScanner::fetch_next_record_in_page()
 
     // 让当前事务探测一下是否访问冲突，或者需要加锁、等锁等操作，由事务自己决定
     rc = trx_->visit_record(table_, next_record_, readonly_);
+    // rc = RC::SUCCESS;
     if (rc == RC::RECORD_INVISIBLE) {
       // 可以参考MvccTrx，表示当前记录不可见
       // 这种模式仅在 readonly 事务下是有效的

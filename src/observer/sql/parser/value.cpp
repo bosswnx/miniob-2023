@@ -210,6 +210,9 @@ int Value::compare(const Value &other) const
   } else if (other.is_null_) {
     return 1;
   }
+  // if (this->is_null_ || other.is_null_) {
+  //   return -1;
+  // }
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
