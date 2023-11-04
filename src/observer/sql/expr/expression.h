@@ -421,8 +421,8 @@ private:
 class AggreExpr : public Expression 
 {
 public:
-  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) { value_.set_null(true); }
-  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) { value_.set_null(true);}
+  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) {}
+  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) {}
   virtual ~AggreExpr() = default;
 
   ExprType type() const override { return ExprType::AGGREGATION; }

@@ -99,7 +99,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LOAD
         DATA
         INFILE
-        NULLABLE
         NOT_NULL
         EXPLAIN
         UNIQUE
@@ -448,7 +447,7 @@ opt_null:
 	NOT_NULL {
 		$$ = false;
 	}
-	| NULLABLE {
+	| NULL_T {
 		$$ = true;
 	}
 	; 
@@ -513,13 +512,13 @@ value:
       free(tmp);
       @$ = @1;
     }
+    | NULL_T {
+      $$ = new Value(true, true);
+    }
     |SSS {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
-    }
-    |NULLABLE {
-      $$ = new Value(true, true);
     }
     ;
     
@@ -727,14 +726,14 @@ expression:
       free(tmp);
       $$->set_name(token_name(sql_string, &@$));
     }
+    | NULL_T {
+      $$ = new ValueExpr(Value(true, true));
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | SSS {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new ValueExpr(Value(tmp));
       free(tmp);
-      $$->set_name(token_name(sql_string, &@$));
-    }
-    | NULL_T {
-      $$ = new ValueExpr(Value(true, true));
       $$->set_name(token_name(sql_string, &@$));
     }
     | ID {

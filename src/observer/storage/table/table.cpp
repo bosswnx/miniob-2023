@@ -325,7 +325,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
 
   char *record_data = (char *)malloc(record_size);
   for(int i = 0; i < value_num; i++){
-    char p = char(values[i].get_null_or_()?1:0);
+    char p = char(values[i].get_null_or_());
     memcpy(record_data + i, &p, 1); 
   }
 

@@ -760,6 +760,8 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
   if (type_ == AggreType::CNTALL) {
     cnt_++;
     value.set_int(cnt_);
+    value_.set_int(cnt_);
+    return RC::SUCCESS;
   }
   rc = child_->get_value(tuple, value);
   if (rc != RC::SUCCESS) {
@@ -767,7 +769,17 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
     return rc;
   }
   if (value.get_null_or_()) {
-    return rc;
+    value = value_;
+    if (cnt_ == 0) {
+      LOG_WARN("aggregate function has no value");
+      value.set_null(true);
+      return RC::SUCCESS;
+    }
+    if (type_ == AggreType::AVG) {
+      float tmp = value.get_float() / (float)cnt_;
+      value.set_float(tmp);
+    }
+    return RC::SUCCESS;
   }
   cnt_++;
   if (cnt_ == 1) {
@@ -789,7 +801,7 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
             value_.set_date(value.get_date());
           } break;
           case CHARS: {
-            value_.set_string(value.get_string().c_str());
+            value_.set_string(value.get_string());
           } break;
           default: {
             LOG_WARN("unsupported attr type. %d", value.attr_type());
@@ -834,10 +846,10 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
             value_.set_float(std::max(value.get_float(), value_.get_float()));
           } break;
           case DATES: {
-            value_.set_date(std::max(value.data(), value_.data()));
+            value_.set_date(date(std::max(value.get_date().get_date_value(), value_.get_date().get_date_value())));
           } break;
           case CHARS: {
-            value_.set_string(std::max(value.get_string().c_str(), value_.get_string().c_str()));
+            value_.set_string(std::max(value.get_string(), value_.get_string()));
           } break;
           default: {
             LOG_WARN("unsupported attr type. %d", value.attr_type());
@@ -854,10 +866,10 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
             value_.set_float(std::min(value.get_float(), value_.get_float()));
           } break;
           case DATES: {
-            value_.set_date(std::min(value.data(), value_.data()));
+            value_.set_date(date(std::min(value.get_date().get_date_value(), value_.get_date().get_date_value())));
           } break;
           case CHARS: {
-            value_.set_string(std::min(value.get_string().c_str(), value_.get_string().c_str()));
+            value_.set_string(std::min(value.get_string(), value_.get_string()));
           } break;
           default: {
             LOG_WARN("unsupported attr type. %d", value.attr_type());
@@ -899,8 +911,11 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
 RC AggreExpr::try_get_value(Value &value) const {
   value = value_;
   if (cnt_ == 0) {
-    LOG_WARN("aggregate function has no value");
-    value.set_null(true);
+    if (type_ == AggreType::CNT || type_ == AggreType::CNTALL) {
+      value.set_int(0);
+    } else {
+      value.set_null(true);
+    }
     return RC::SUCCESS;
   }
   if (type_ == AggreType::AVG) {

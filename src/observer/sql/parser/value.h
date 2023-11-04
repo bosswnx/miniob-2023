@@ -131,7 +131,8 @@ public:
   void set_boolean(bool val);
   void set_date(date val);
   void set_string(const char *s, int len = 0);
-  void set_null(bool is_null){ is_null? is_null_ = true: is_null_ = false; }
+  void set_string(const std::string &s) { set_string(s.c_str()); }
+  void set_null(bool is_null){ is_null_ = is_null; }
   void set_value(const Value &value);
 
   bool check_date(date val) const;

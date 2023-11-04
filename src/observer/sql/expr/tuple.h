@@ -231,10 +231,9 @@ public:
     }
     else
     {
-      cell.set_null(false);
+      cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     }
     
-    cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;
   }
 
@@ -324,9 +323,17 @@ public:
     if (tuple_ == nullptr) {
       return RC::INTERNAL;
     }
-    RC rc = RC::SUCCESS;
     Expression *expr = exprs_[index].get();
     return expr->get_value(*tuple_, cell);
+  }
+
+  RC try_cell_at(int index, Value &cell) const
+  {
+    if (index < 0 || index >= static_cast<int>(exprs_.size())) {
+      return RC::INTERNAL;
+    }
+    Expression *expr = exprs_[index].get();
+    return expr->try_get_value(cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override

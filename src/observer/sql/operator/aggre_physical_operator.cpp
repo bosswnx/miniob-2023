@@ -34,6 +34,8 @@ RC AggregationPhysicalOperator::open(Trx *trx) {
     LOG_WARN("failed to open child operator: %s", strrc(rc));
     return rc;
   }
+  
+  
 
   trx_ = trx;
   return RC::SUCCESS;
@@ -52,19 +54,22 @@ RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
   vector<Value> cells;
   while ((rc = child->next(main_query_tuple)) == RC::SUCCESS) {
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
-    if (cells.size() == 0) {
-      cells.resize(tuple->cell_num());
-    }
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;
     }
     // 计算聚合函数
-    for (int i = 0; i < tuple->cell_num(); i++) {
+    for (int i = 0; i < tuple->cell_num(); i++) { 
       Value cell;
       tuple->cell_at(i, cell);
-      cells[i] = cell;
     }
+  }
+  auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
+  cells.resize(tuple->cell_num());
+  for (int i = 0; i < tuple->cell_num(); i++) {
+    Value cell;
+    tuple->try_cell_at(i, cell);
+    cells[i] = cell;
   }
   if (rc != RC::RECORD_EOF) {
     LOG_WARN("failed to get next record: %s", strrc(rc));

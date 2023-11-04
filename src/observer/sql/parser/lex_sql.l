@@ -123,7 +123,7 @@ FLOAT                                   RETURN_TOKEN(FLOAT_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
-NULL                                    RETURN_TOKEN(NULLABLE);
+NULL                                    RETURN_TOKEN(NULL_T);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
