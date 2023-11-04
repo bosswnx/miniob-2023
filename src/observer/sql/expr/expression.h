@@ -194,7 +194,7 @@ public:
   ExprType type() const override { return ExprType::RELATTR; }
   AttrType value_type() const override { return UNDEFINED; }
 
-  RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override { return RC::UNIMPLENMENT; }
   RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
 
   const string &table_name() const { return table_name_; }
@@ -203,7 +203,11 @@ public:
   void set_table_name(const string &table_name) { table_name_ = table_name; }
   void set_field_name(const string &field_name) { field_name_ = field_name; }
 
+  void set_is_main_relation(bool is_main_relation) { is_main_relation_ = is_main_relation; }
+  const bool is_main_relation() const { return is_main_relation_; }
+
 private:
+  bool is_main_relation_ = false;
   std::string table_name_;
   std::string field_name_;
 };
@@ -417,15 +421,15 @@ private:
 class AggreExpr : public Expression 
 {
 public:
-  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) {}
-  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) {}
+  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) { value_.set_null(true); }
+  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) { value_.set_null(true);}
   virtual ~AggreExpr() = default;
 
   ExprType type() const override { return ExprType::AGGREGATION; }
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
   RC try_get_value(Value &value) const override;
 
   AggreType agg_type() const { return type_; }

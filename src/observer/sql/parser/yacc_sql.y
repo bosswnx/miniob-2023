@@ -763,6 +763,10 @@ expression:
       }
       $$->set_name(token_name(sql_string, &@$));
     }
+    | aggre_type LBRACE RBRACE {
+      $$ = new AggreExpr($1, nullptr);
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
@@ -1083,8 +1087,10 @@ condition:
       $$ = new ConditionSqlNode;
       // $$->left_is_attr = 0;
       $$->left_expr = $1;
+      $$->left_is_expr = true;
       // $$->right_is_attr = 0;
       $$->right_expr = $3;
+      $$->right_is_expr = true;
       $$->comp = $2;
       $$->sub_select = 0;
     }
@@ -1093,6 +1099,7 @@ condition:
       $$ = new ConditionSqlNode;
       // $$->left_is_attr = 0;
       $$->left_expr = $1;
+      $$->left_is_expr = true;
       // $$->right_is_attr = 0;
       //$$->right_value = nullptr;
       //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
@@ -1106,6 +1113,7 @@ condition:
       $$ = new ConditionSqlNode;
       // $$->left_is_attr = 1;
       $$->left_expr = $1;
+      $$->left_is_expr = true;
       // $$->right_is_attr = 0;
       $$->comp = IN_;
       $$->sub_select = 2;
@@ -1118,11 +1126,21 @@ condition:
       std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
       delete $4;
     }
+    | expression IN sub_select_stmt {
+      // IN/NOT IN
+      $$ = new ConditionSqlNode;
+      $$->left_expr = $1;
+      $$->left_is_expr = true;
+      $$->comp = IN_;
+      $$->sub_select = 2;
+      $$->right_sub_select = $3;
+    }
     | expression NI LBRACE value value_list RBRACE {
       // IN/NOT IN
       $$ = new ConditionSqlNode;
       // $$->left_is_attr = 1;
       $$->left_expr = $1;
+      $$->left_is_expr = true;
       // $$->right_is_attr = 0;
       $$->comp = NOT_IN;
       $$->sub_select = 2;
@@ -1135,6 +1153,15 @@ condition:
       std::reverse($$->right_sub_select->some_values.values.begin(), $$->right_sub_select->some_values.values.end());
       delete $4;
     }
+    | expression NI sub_select_stmt {
+      // IN/NOT IN
+      $$ = new ConditionSqlNode;
+      $$->left_expr = $1;
+      $$->left_is_expr = true;
+      $$->comp = NOT_IN;
+      $$->sub_select = 2;
+      $$->right_sub_select = $3;
+    }
     | sub_select_stmt comp_op expression
     {
       $$ = new ConditionSqlNode;
@@ -1144,6 +1171,7 @@ condition:
       $$->left_sub_select = $1;
       // $$->right_is_attr = 0;
       $$->right_expr = $3;
+      $$->right_is_expr = true;
       $$->sub_select = 1;
       $$->comp = $2;
     }
@@ -1217,8 +1245,8 @@ condition:
     {
       // EXISTS/NOT EXISTS
       $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->right_is_attr = 0;
+      $$->left_is_expr = 0;
+      $$->right_is_expr = 0;
       $$->comp = $2;
       $$->left_sub_select = $1;
       $$->right_sub_select = $3;

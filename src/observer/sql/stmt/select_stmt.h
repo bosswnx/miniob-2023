@@ -82,6 +82,10 @@ public:
 
   static RC check_have_aggre(const std::unique_ptr<Expression> &expr, bool &is_aggre, bool &is_attr);
 
+  static RC check_parent_relation(Expression *expr, 
+      std::shared_ptr<std::unordered_map<string, string>> parent_alias2name, 
+      const std::vector<string> &main_relation_names, bool &is_parent_relation);
+
 private:
   std::vector<std::unique_ptr<Expression>> query_exprs_;
   std::vector<Field> query_fields_;

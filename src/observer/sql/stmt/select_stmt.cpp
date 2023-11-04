@@ -225,6 +225,59 @@ RC SelectStmt::check_have_aggre(const std::unique_ptr<Expression> &expr, bool &i
   return rc;
 }
 
+RC SelectStmt::check_parent_relation(Expression *expr,
+    std::shared_ptr<std::unordered_map<string, string>> parent_alias2name, const vector<string> &parent_relations, bool &is_parent_relation) {
+  if (expr->type() == ExprType::VALUE) {
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::ARITHMETIC) {
+    ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr);
+    if (arith_expr->left() != nullptr) {
+      RC rc = SelectStmt::check_parent_relation(arith_expr->left().get(), parent_alias2name, parent_relations, is_parent_relation);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check parent relation");
+        return rc;
+      }
+    }
+    if (arith_expr->right() != nullptr) {
+      RC rc = SelectStmt::check_parent_relation(arith_expr->right().get(), parent_alias2name, parent_relations, is_parent_relation);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check parent relation");
+        return rc;
+      }
+    }
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::AGGREGATION) {
+    AggreExpr *aggre_expr = static_cast<AggreExpr *>(expr);
+    if (aggre_expr->child() == nullptr) {
+      LOG_WARN("invalid aggre expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    RC rc = SelectStmt::check_parent_relation(aggre_expr->child().get(), parent_alias2name, parent_relations, is_parent_relation);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to check parent relation");
+      return rc;
+    }
+    return rc;
+  }
+  // 只剩下 ATTR 了
+  if (expr->type() != ExprType::RELATTR) {
+    LOG_WARN("invalid expr type: %d", expr->type());
+    return RC::INVALID_ARGUMENT;
+  }
+  auto relattr_expr = static_cast<RelAttrExpr *>(expr);
+  if (parent_alias2name->find(relattr_expr->table_name()) != parent_alias2name->end() || 
+      std::find(parent_relations.begin(), parent_relations.end(), relattr_expr->table_name()) != parent_relations.end()) {
+    is_parent_relation = true;
+    relattr_expr->set_is_main_relation(true);
+    if (parent_alias2name->find(relattr_expr->table_name()) != parent_alias2name->end()) {
+      relattr_expr->set_table_name((*parent_alias2name)[relattr_expr->table_name()]);
+    }
+  }
+  return RC::SUCCESS;
+}
+
 RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
     std::shared_ptr<std::unordered_map<string, string>> name2alias,
     std::shared_ptr<std::unordered_map<string, string>> alias2name,
@@ -259,51 +312,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // 如果有非本查询的 relation，将其转换为 sub_select
   if (!tag_) {
       for (auto &condition: select_sql.conditions) {
-        if (condition.left_is_attr && 
-            (alias2name->find(condition.left_attr.relation_name) != alias2name->end() || 
-            main_relation_names->end() != std::find(main_relation_names->begin(), main_relation_names->end(), condition.left_attr.relation_name))
-          ) {
-          // 如果是属性，且 relation 在 alias2name 中或者 name2alias 中，说明是父查询的 relation
-          // condition.left_is_attr = false;
-          // SubSelectSqlNode *sub_select = new SubSelectSqlNode();
-          // sub_select->flag = SCF_SELECT;
-          // sub_select->selection.attributes.push_back(condition.left_attr);
-          // RelationSqlNode relation;
-          condition.is_left_main_ = true;
-          if (alias2name->find(condition.left_attr.relation_name) != alias2name->end()) {
-            // 如果在 alias2name 中，说明是别名，将其转换为 name
-            // relation.name = (*alias2name)[condition.left_attr.relation_name];
-            condition.left_attr.relation_name = (*alias2name)[condition.left_attr.relation_name];
-          } else {
-            // relation.name = condition.left_attr.relation_name;
-            condition.left_attr.relation_name = condition.left_attr.relation_name;
-          }
-          // sub_select->selection.relations.push_back(relation);
-          // condition.left_sub_select = sub_select;
-          // condition.sub_select = 1;
-        } 
-        if (condition.right_is_attr &&
-             (alias2name->find(condition.right_attr.relation_name) != alias2name->end() || 
-             main_relation_names->end() != std::find(main_relation_names->begin(), main_relation_names->end(), condition.right_attr.relation_name))
-          ) {
-          // 如果是属性，且 relation 在 alias2name 中或者 name2alias 中，说明是父查询的 relation
-          // condition.right_is_attr = false;
-          // SubSelectSqlNode *sub_select = new SubSelectSqlNode();
-          // sub_select->flag = SCF_SELECT;
-          // sub_select->selection.attributes.push_back(condition.right_attr);
-          // RelationSqlNode relation;
-          condition.is_right_main_ = true;
-          if (alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
-            // 如果在 alias2name 中，说明是别名，将其转换为 name
-            // relation.name = (*alias2name)[condition.right_attr.relation_name];
-            condition.right_attr.relation_name = (*alias2name)[condition.right_attr.relation_name];
-          } else {
-            // relation.name = condition.right_attr.relation_name;
-            condition.right_attr.relation_name = condition.right_attr.relation_name;
-          }
-          // sub_select->selection.relations.push_back(relation);
-          // condition.right_sub_select = sub_select;
-          // condition.sub_select = 2;
+        if (condition.left_is_expr) {
+          SelectStmt::check_parent_relation(condition.left_expr, alias2name, *main_relation_names, condition.is_left_main_);
+        }
+        if (condition.right_is_expr) {
+          SelectStmt::check_parent_relation(condition.right_expr, alias2name, *main_relation_names, condition.is_right_main_);
         }
       }
   }

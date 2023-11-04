@@ -113,10 +113,19 @@ RC make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string,
   RelAttrExpr *relattr_expr = static_cast<RelAttrExpr *>(expr.get());
   Table *table = nullptr;
   const FieldMeta *field = nullptr;
-  rc = get_table_and_field(db, default_table, tables, relattr_expr, table, field);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("cannot find attr");
-    return rc;
+  if (relattr_expr->is_main_relation()) {
+    table = db->find_table(relattr_expr->table_name().c_str());
+    if (nullptr == table) {
+      LOG_WARN("No such table: attr.relation_name: %s", relattr_expr->table_name().c_str());
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+    field = table->table_meta().field(relattr_expr->field_name().c_str());
+  } else {
+    rc = get_table_and_field(db, default_table, tables, relattr_expr, table, field);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot find attr");
+      return rc;
+    }
   }
   expr = std::make_unique<FieldExpr>(table, field);
   return rc;
@@ -139,10 +148,14 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   bool right_is_value = false;
   Value left_value;
   bool left_is_value = false;
-  rc = condition.left_expr->try_get_value(left_value);
-  left_is_value = rc == RC::SUCCESS;
-  rc = condition.right_expr->try_get_value(right_value);
-  right_is_value = rc == RC::SUCCESS;
+  if (condition.left_is_expr) {
+    rc = condition.left_expr->try_get_value(left_value);
+    left_is_value = rc == RC::SUCCESS;
+  }
+  if (condition.right_is_expr) {
+    rc = condition.right_expr->try_get_value(right_value);
+    right_is_value = rc == RC::SUCCESS;
+  }
   rc = RC::SUCCESS;
   if (right_is_value && right_value.attr_type() == DATES) {
     //判断日期是否合法
@@ -156,7 +169,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   }
 
   // 左 filterObj
-  if (condition.sub_select == 1) { // 如果是子查询
+  if (condition.sub_select == 1 || condition.sub_select == 3) { // 如果是子查询
     if(condition.left_sub_select->flag == SCF_SELECT) {
       // 普通的子查询语句（select）
       FilterObj filter_obj;
@@ -180,7 +193,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_unit->set_left(filter_obj);
   }
   // 右 filterObj
-  if (condition.sub_select == 2) {  // 如果是子查询
+  if (condition.sub_select == 2 || condition.sub_select == 3) {  // 如果是子查询
     // FilterObj filter_obj;
     // filter_obj.init_sub_select_stmt(condition.right_select_stmt);
     // filter_unit->set_right(filter_obj);

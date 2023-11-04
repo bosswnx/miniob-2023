@@ -165,11 +165,15 @@ RC SubqueryExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
   //     return rc;
   //   }
   // }
-  if (another_tuple->cell_num() != 1) {
+  if (another_tuple->cell_num() > 1) {
     LOG_WARN("tuple cell count is not 1");
     return RC::INVALID_ARGUMENT;
   }
-  another_tuple->cell_at(0, value);
+  if (another_tuple->cell_num() == 0) {
+    value.set_null(true);
+  } else {
+    another_tuple->cell_at(0, value);
+  }
   return rc;
 }
 
@@ -751,7 +755,7 @@ AttrType AggreExpr::value_type() const {
   }
 }
 
-RC AggreExpr::get_value(const Tuple &tuple, Value &value) {
+RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
   RC rc = RC::SUCCESS;
   if (type_ == AggreType::CNTALL) {
     cnt_++;
@@ -793,7 +797,9 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value) {
           } break;
         }
       } break;
-      case AggreType::AVG:
+      case AggreType::AVG: {
+        value_.set_float(value.get_float());
+      } break;
       case AggreType::SUM: {
         switch (value.attr_type()) {
           case INTS: {
@@ -859,7 +865,9 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value) {
           } break;
         }
       } break;
-      case AggreType::AVG:
+      case AggreType::AVG: {
+        value_.set_float(value.get_float() + value_.get_float());
+      } break;
       case AggreType::SUM: {
         switch (value.attr_type()) {
           case INTS: {
@@ -882,7 +890,8 @@ RC AggreExpr::get_value(const Tuple &tuple, Value &value) {
   }
   value = value_;
   if (type_ == AggreType::AVG) {
-    value.set_float(value.get_float() / cnt_);
+    float tmp = value.get_float() / (float)cnt_;
+    value.set_float(tmp);
   }
   return RC::SUCCESS;
 }
@@ -891,7 +900,8 @@ RC AggreExpr::try_get_value(Value &value) const {
   value = value_;
   if (cnt_ == 0) {
     LOG_WARN("aggregate function has no value");
-    return RC::INTERNAL;
+    value.set_null(true);
+    return RC::SUCCESS;
   }
   if (type_ == AggreType::AVG) {
     value.set_float(value.get_float() / cnt_);

@@ -60,6 +60,7 @@ Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
 void Value::set_data(char *data, int length)
 {
+  is_null_ = false;
   switch (attr_type_) {
     case CHARS: {
       set_string(data, length);
@@ -89,6 +90,7 @@ void Value::set_data(char *data, int length)
 void Value::set_int(int val)
 {
   attr_type_ = INTS;
+  is_null_ = false;
   num_value_.int_value_ = val;
   length_ = sizeof(val);
 }
@@ -96,18 +98,21 @@ void Value::set_int(int val)
 void Value::set_float(float val)
 {
   attr_type_ = FLOATS;
+  is_null_ = false;
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
 void Value::set_boolean(bool val)
 {
   attr_type_ = BOOLEANS;
+  is_null_ = false;
   num_value_.bool_value_ = val;
   length_ = sizeof(val);
 }
 void Value::set_date(date val)
 {
   attr_type_ = DATES;
+  is_null_ = false;
   date_value_ = val;
   length_ = sizeof(val.get_date_value());
 
@@ -115,6 +120,7 @@ void Value::set_date(date val)
 void Value::set_string(const char *s, int len /*= 0*/)
 {
   attr_type_ = CHARS;
+  is_null_ = false;
   if (len > 0) {
     len = strnlen(s, len);
     str_value_.assign(s, len);
