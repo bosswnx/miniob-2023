@@ -132,6 +132,10 @@ RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
       count[i]++;
   }
   }
+  if (rc != RC::RECORD_EOF) {
+    LOG_WARN("failed to get next record: %s", strrc(rc));
+    return rc;
+  }
   // todo: trx
   for (int i = 0; i < aggre_types_.size(); i++) {
     if(count[i] == 0 && aggre_types_[i] != AggreType::CNT && aggre_types_[i] != AggreType::CNTALL ) {
