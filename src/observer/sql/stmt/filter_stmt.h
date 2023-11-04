@@ -94,10 +94,21 @@ public:
     return right_;
   }
 
+  void set_conjunction_type(char type)
+  {
+    conjunction_type_ = type;
+  }
+
+  char conjunction_type() const
+  {
+    return conjunction_type_;
+  }
+
 private:
   CompOp comp_ = NO_OP;
   FilterObj left_;
   FilterObj right_;
+  char conjunction_type_ = 0; // 0: no conjunction, 1: and, 2: or
 };
 
 /**

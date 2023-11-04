@@ -168,8 +168,16 @@ RC LogicalPlanGenerator::create_plan(
     FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   std::vector<unique_ptr<Expression>> cmp_exprs;
+  std::vector<ConjunctionExpr::Type> conjunction_types;
   const std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
   for (const FilterUnit *filter_unit : filter_units) {
+    if (filter_unit->conjunction_type() == 2) {
+      conjunction_types.push_back(ConjunctionExpr::Type::OR);
+    } else {
+      // 暂时其他的都设为 and
+      conjunction_types.push_back(ConjunctionExpr::Type::AND);
+    }
+    
     const FilterObj &filter_obj_left = filter_unit->left();
     const FilterObj &filter_obj_right = filter_unit->right();
 
@@ -262,7 +270,7 @@ RC LogicalPlanGenerator::create_plan(
 
   // 如果有多个比较条件，需要套上一个ConjunctionExpr。miniob 中暂时只支持 AND 关系
   if (!cmp_exprs.empty()) {
-    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
+    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(conjunction_types[0], cmp_exprs)); // 暂时获取第一个（暂时不支持and和or混用）
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
   }
 

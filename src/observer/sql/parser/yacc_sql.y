@@ -93,6 +93,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         EXISTS
         NOT_EXISTS
         AND
+        OR
         SET
         ON
         LOAD
@@ -1071,11 +1072,19 @@ condition_list:
     }
     | condition {
       $$ = new std::vector<ConditionSqlNode>;
+      $1->conjunction_type = 0;
       $$->emplace_back(*$1);
       delete $1;
     }
     | condition AND condition_list {
       $$ = $3;
+      $1->conjunction_type = 1;
+      $$->emplace_back(*$1);
+      delete $1;
+    }
+    | condition OR condition_list {
+      $$ = $3;
+      $1->conjunction_type = 2;
       $$->emplace_back(*$1);
       delete $1;
     }
