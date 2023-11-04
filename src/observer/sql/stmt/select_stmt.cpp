@@ -110,6 +110,22 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
     }
     return rc;
   }
+  if (expr->type() == ExprType::AGGREGATION) {
+    AggreExpr *aggre_expr = static_cast<AggreExpr *>(expr.get());
+    if (aggre_expr->agg_type() == AggreType::CNTALL) {
+      return RC::SUCCESS;
+    }
+    if (aggre_expr->child() == nullptr) {
+      LOG_WARN("invalid aggre expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    rc = SelectStmt::make_field_expr(db, default_table, tables, aggre_expr->child(), query_fields);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to make field expr");
+      return rc;
+    }
+    return rc;
+  }
   if (expr->type() != ExprType::RELATTR) {
     LOG_WARN("invalid expr type: %d", expr->type());
     return RC::INVALID_ARGUMENT;
@@ -132,6 +148,79 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
   }
   expr = std::make_unique<FieldExpr>(table, field);
   query_fields.push_back(Field(table, field));
+  return rc;
+}
+
+RC SelectStmt::check_have_aggre(const std::unique_ptr<Expression> &expr, bool &is_aggre, bool &is_attr) {
+  RC rc = RC::SUCCESS;
+  if (expr->type() == ExprType::VALUE) {
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::ARITHMETIC) {
+    ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr.get());
+    bool left_is_attr = false;
+    if (arith_expr->left() != nullptr) {
+      rc = SelectStmt::check_have_aggre(arith_expr->left(), is_aggre, left_is_attr);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check have aggre");
+        return rc;
+      }
+    }
+    bool right_is_attr = false;
+    if (arith_expr->right() != nullptr) {
+      rc = SelectStmt::check_have_aggre(arith_expr->right(), is_aggre, right_is_attr);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check have aggre");
+        return rc;
+      }
+    }
+    if (left_is_attr || right_is_attr) {
+      is_attr = true;
+    }
+    if (is_attr && is_aggre) {
+      LOG_WARN("both have aggregation and normal selection.");
+      return RC::INVALID_ARGUMENT;
+    }
+    return rc;
+  }
+  if (expr->type() == ExprType::RELATTR) {
+    RelAttrExpr *relattr_expr = static_cast<RelAttrExpr *>(expr.get());
+    if (relattr_expr->field_name() == "*" || relattr_expr->table_name() == "*") {
+      LOG_WARN("can not use * in arithmetic expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    is_attr = true;
+    return rc;
+  }
+  // 只剩下聚合函数了
+  AggreExpr *aggre_expr = static_cast<AggreExpr *>(expr.get());
+  if (aggre_expr->child() == nullptr) {
+    LOG_WARN("invalid aggre expr");
+    return RC::INVALID_ARGUMENT;
+  }
+  // 如果是 COUNT(*)，则直接返回
+  if (aggre_expr->agg_type() == AggreType::CNT) {
+    auto child_expr = aggre_expr->child().get();
+    if (child_expr->type() == ExprType::RELATTR) {
+      auto relattr_expr = static_cast<RelAttrExpr *>(child_expr);
+      if (relattr_expr->table_name() == "*" && relattr_expr->field_name() != "*") {
+        LOG_WARN("invalid field name while table is *. attr=%s", relattr_expr->field_name().c_str());
+        return RC::INTERNAL;
+      }
+      if (relattr_expr->field_name() == "*" || relattr_expr->table_name() == "*") {
+        aggre_expr->set_agg_type(AggreType::CNTALL);
+        is_aggre = true;
+        return RC::SUCCESS;
+      }
+    }
+  }
+  rc = SelectStmt::check_have_aggre(aggre_expr->child(), is_aggre, is_attr);
+  if (rc != RC::SUCCESS || is_aggre) {
+    LOG_WARN("failed to check have aggre");
+    return rc;
+  }
+  is_aggre = true;
+  is_attr = false;
   return rc;
 }
 
@@ -285,20 +374,22 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   std::vector<std::unique_ptr<Expression>> query_exprs;  // 需要查询的表达式
   std::vector<std::string> query_aliases;  // 查询的名称
   std::vector<Field> query_fields;  // 查询需要用到的字段
-  std::vector<AggreType> aggre_types;  // 聚合函数的类型
   int aggre_stat = 0;  //  用于表示当前是否有聚合函数  01->普通  10->聚合
   bool with_table_name = tables.size() > 1;  // 是否需要表名
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
-    aggre_stat |= relation_attr.aggre_type == AggreType::NONE ? 1 : 2;
+    bool is_aggre = false;
+    bool is_attr = false;
+    auto expr = std::unique_ptr<Expression>(relation_attr.expr);
+    RC rc = SelectStmt::check_have_aggre(expr, is_aggre, is_attr);
+    aggre_stat |= (is_aggre ? 2 : 1);
     if (aggre_stat == 3) {
       LOG_WARN("both have aggregation and normal selection.");
       return RC::INVALID_ARGUMENT;
     }
-
     // 如果表达式直接就是表名和属性名，那么进行判断（需要支持"*"）
-    if (relation_attr.expr->type() == ExprType::RELATTR) {
-      auto relattr_expr = static_cast<RelAttrExpr *>(relation_attr.expr);
+    if (expr->type() == ExprType::RELATTR) {
+      auto relattr_expr = static_cast<RelAttrExpr *>(expr.get());
       // 如果表名为空，且属性名为*，则将所有表的所有属性加入到query_fields中
       if (relattr_expr->field_name() == "*" && relattr_expr->table_name().empty()) {
         if (relation_attr.aggre_type == AggreType::NONE) {
@@ -324,7 +415,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
           } else {
             query_aliases.push_back(field_meta->name());
           }
-          aggre_types.push_back(AggreType::CNTALL);
         } else {  // 如果是聚合函数，报错
           LOG_WARN("invalid selection in aggregation function.");
           return RC::INVALID_ARGUMENT;
@@ -365,7 +455,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
             } else {
               query_aliases.push_back(field_meta->name());
             }
-            aggre_types.push_back(AggreType::CNT);
           } else {
             LOG_WARN("invalid selection in aggregation function.");
             return RC::INVALID_ARGUMENT;
@@ -398,7 +487,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
               } else {
                 query_aliases.push_back(field_meta->name());
               }
-              aggre_types.push_back(AggreType::CNT);
             } else {
               LOG_WARN("invalid selection in aggregation function.");
               return RC::INVALID_ARGUMENT;
@@ -421,7 +509,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
               query_aliases.push_back(field_meta->name());
             }
             if (relation_attr.aggre_type != AggreType::NONE) {
-              aggre_types.push_back(relation_attr.aggre_type);
             }
           }
         }
@@ -459,13 +546,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
           query_aliases.push_back(field_meta->name());
         }
         if (relation_attr.aggre_type != AggreType::NONE) {
-          aggre_types.push_back(relation_attr.aggre_type);
         }
       }
       // 否则就是复杂的表达式，将其中的 RelAttrExpr 转换为 FieldExpr 后，直接加入到query_exprs中
     } else {
-      std::unique_ptr<Expression> expr(relation_attr.expr);
-      expr->set_name(relation_attr.expr->name());
+      expr->set_name(expr->name());
       RC rc = SelectStmt::make_field_expr(db, tables[0], &table_map, expr, query_fields);
       if (rc != RC::SUCCESS) {
         LOG_WARN("cannot construct field expr");
@@ -559,7 +644,6 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   select_stmt->query_exprs_.swap(query_exprs);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->query_aliases_.swap(query_aliases);
-  select_stmt->aggre_types_.swap(aggre_types);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->order_by_fields_.swap(order_by_fields);
   stmt = select_stmt;

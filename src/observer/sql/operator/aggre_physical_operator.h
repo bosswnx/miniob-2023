@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/parser/parse_defs.h"
 #include "storage/record/record_manager.h"
+#include <memory>
 
 /**
  * @brief 聚合函数物理算子
@@ -26,7 +27,7 @@ See the Mulan PSL v2 for more details. */
 class AggregationPhysicalOperator : public PhysicalOperator
 {
 public:
-  AggregationPhysicalOperator(std::vector<AggreType> &aggre_types);
+  AggregationPhysicalOperator() {}
 
   virtual ~AggregationPhysicalOperator() = default;
 
@@ -46,8 +47,6 @@ public:
 
 private:
   Trx * trx_ = nullptr;  // trx 用于处理并发
-
-  std::vector<AggreType> aggre_types_;
   ValueListTuple tuple_;
   bool finished_ = false;
 };

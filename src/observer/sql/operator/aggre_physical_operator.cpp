@@ -23,8 +23,6 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 
-AggregationPhysicalOperator::AggregationPhysicalOperator(std::vector<AggreType> &aggre_types): aggre_types_(aggre_types) {}
-
 RC AggregationPhysicalOperator::open(Trx *trx) {
   if (children_.empty()) {
     LOG_WARN("Aggregation physical operator has to have child physical operator.");
@@ -51,110 +49,25 @@ RC AggregationPhysicalOperator::next() {
     return RC::INTERNAL;
   }
   auto *child = children_[0].get();
-  vector<Value> cells(aggre_types_.size());
-  bool initialized = false;
-  vector<int> count(aggre_types_.size());
+  vector<Value> cells;
   while ((rc = child->next()) == RC::SUCCESS) {
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
+    if (cells.size() == 0) {
+      cells.resize(tuple->cell_num());
+    }
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;
     }
-    if (!initialized) {
-      initialized = true;
-      for (int i = 0; i < aggre_types_.size(); i++) {
-        Value cell;
-        tuple->cell_at(i, cell);
-        switch (cell.attr_type()) {
-          case INTS: {
-            cells[i].set_type(INTS);
-            cells[i].set_int(cell.get_int());
-          } break;
-          case FLOATS: {
-            cells[i].set_type(FLOATS);
-            cells[i].set_float(cell.get_float());
-          } break;
-          case DATES: {
-            cells[i].set_type(DATES);
-            cells[i].set_date(cell.get_date());
-          } break;
-          case CHARS: {
-            cells[i].set_type(CHARS);
-            cells[i].set_string(cell.get_string().c_str());
-          } break;
-          default: {
-            LOG_WARN("invalid attrebute type.");
-            return RC::INVALID_ARGUMENT;
-          }
-        }
-        count[i]++;
-        if(cell.get_null_or_() == true) count[i]--;
-      }
-      
-      continue;
-    }
-    for (int i = 0; i < aggre_types_.size(); i++) {
+    // 计算聚合函数
+    for (int i = 0; i < tuple->cell_num(); i++) {
       Value cell;
       tuple->cell_at(i, cell);
-      switch (aggre_types_[i]) {
-        case AggreType::MAX: {
-          // 检查是否为null
-          if (cells[i].get_null_or_() == false && cell.get_null_or_() == false) {
-            if (cells[i].compare(cell) < 0) {
-            cells[i] = cell;
-          }
-          }
-          
-        } break;
-        case AggreType::MIN: {
-          if (cells[i].get_null_or_() == false && cell.get_null_or_() == false){
-            if (cells[i].compare(cell) > 0) {
-            cells[i] = cell;
-          }}
-        } break;
-        case AggreType::SUM: {
-          if (cell.get_null_or_() == false){
-            if (cells[i].attr_type() == INTS) {
-              cells[i].set_int(cells[i].get_int() + cell.get_int());
-            } else {
-              cells[i].set_float(cells[i].get_float() + cell.get_float());
-          }} 
-        } break;
-        case AggreType::AVG: {
-          if (cell.get_null_or_() == false){
-          cells[i].set_float(cells[i].get_float() + cell.get_float());
-        } 
-        } break;
-        default: break;
-      
-      }
-      if(cell.get_null_or_()) count[i]--;
-      count[i]++;
-  }
-  }
-  // todo: trx
-  for (int i = 0; i < aggre_types_.size(); i++) {
-    if(count[i] == 0 && aggre_types_[i] != AggreType::CNT && aggre_types_[i] != AggreType::CNTALL ) {
-      cells[i].set_null(true);
-      continue;
-      }
-    switch (aggre_types_[i]) {
-      case AggreType::AVG: {
-        cells[i].set_type(FLOATS);
-        cells[i].set_float(cells[i].get_float() / count[i]);
-      } break;
-      case AggreType::CNT:{
-        cells[i].set_type(INTS);
-        cells[i].set_int(count[i]);
-      } break;
-      case AggreType::CNTALL: {
-        cells[i].set_type(INTS);
-        cells[i].set_int(count[i]);
-      }
-      default: break;
+      cells[i] = cell;
     }
   }
   tuple_.set_cells(cells);
+  // TODO: rtx
   return RC::SUCCESS;
 }
 

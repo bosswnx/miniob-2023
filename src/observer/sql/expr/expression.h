@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 
+#include "sql/parser/parse_defs.h"
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
 #include "common/log/log.h"
@@ -50,6 +51,7 @@ enum class ExprType
   ARITHMETIC,   ///< 算术运算
   SUBQUERY,     ///< 子查询
   RELATTR,      ///< 字段列表
+  AGGREGATION,  ///< 聚合函数
 };
 
 /**
@@ -407,3 +409,34 @@ private:
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
 };
+
+/**
+ * @brief 聚合函数表达式
+ * @ingroup Expression
+ */
+class AggreExpr : public Expression 
+{
+public:
+  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) {}
+  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) {}
+  virtual ~AggreExpr() = default;
+
+  ExprType type() const override { return ExprType::AGGREGATION; }
+
+  AttrType value_type() const override;
+
+  RC get_value(const Tuple &tuple, Value &value) override;
+  RC try_get_value(Value &value) const override;
+
+  AggreType agg_type() const { return type_; }
+  void set_agg_type(AggreType type) { type_ = type; }
+
+  std::unique_ptr<Expression> &child() { return child_; }
+
+private:
+  AggreType type_;
+  Value value_;
+  int cnt_ = 0;
+  std::unique_ptr<Expression> child_;
+};
+  

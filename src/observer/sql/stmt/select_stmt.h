@@ -71,7 +71,6 @@ public:
     return filter_stmt_;
   }
   bool is_aggre() const { return is_aggre_; }
-  const std::vector<AggreType> &aggre_types() const { return aggre_types_; }
   const std::vector<Field> &order_by_fields() const { return order_by_fields_; }
 
   static RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
@@ -80,11 +79,12 @@ public:
   static RC make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
     std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields);
 
+  static RC check_have_aggre(const std::unique_ptr<Expression> &expr, bool &is_aggre, bool &is_attr);
+
 private:
   std::vector<std::unique_ptr<Expression>> query_exprs_;
   std::vector<Field> query_fields_;
   std::vector<std::string> query_aliases_;
-  std::vector<AggreType> aggre_types_;
   std::vector<Table *> tables_;
   bool is_aggre_;
   FilterStmt *filter_stmt_ = nullptr;

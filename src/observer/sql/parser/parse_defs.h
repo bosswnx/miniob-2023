@@ -73,6 +73,7 @@ struct RelAttrSqlNode
   Expression *expr;
   std::string alias; ///< attribute alias (may be NULL) 属性别名
   AggreType aggre_type = AggreType::NONE;
+  bool error = false;
   bool is_asc;
 };
 

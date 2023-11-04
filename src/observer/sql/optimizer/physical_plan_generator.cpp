@@ -417,8 +417,7 @@ RC PhysicalPlanGenerator::create_plan(AggregationLogicalOperator &aggre_oper, st
     LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
     return rc;
   }
-  auto aggre_types = aggre_oper.aggre_types();
-  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator(aggre_types));
+  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator());
   aggre_phy_oper->add_child(std::move(child_phy_oper));
   oper = std::move(aggre_phy_oper);
   return rc;

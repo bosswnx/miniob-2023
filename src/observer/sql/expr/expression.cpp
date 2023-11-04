@@ -13,10 +13,12 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/expression.h"
+#include "common/rc.h"
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "storage/index/index.h"
+#include "gtest/gtest.h"
 
 class LogicalOperator;
 class PhysicalOperator;
@@ -674,4 +676,173 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+AttrType AggreExpr::value_type() const {
+  switch (type_) {
+    case AggreType::CNT:
+    case AggreType::CNTALL: {
+      return INTS;
+    }
+    case AggreType::MIN:
+    case AggreType::MAX:
+    case AggreType::SUM: {
+      return child_->value_type();
+    }
+    case AggreType::AVG: {
+      return FLOATS;
+    }
+    default: {
+      LOG_WARN("unsupported aggre type. %d", type_);
+      return UNDEFINED;
+    }
+  }
+}
+
+RC AggreExpr::get_value(const Tuple &tuple, Value &value) {
+  RC rc = RC::SUCCESS;
+  if (type_ == AggreType::CNTALL) {
+    cnt_++;
+    value.set_int(cnt_);
+  }
+  rc = child_->get_value(tuple, value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (value.get_null_or_()) {
+    return rc;
+  }
+  cnt_++;
+  if (cnt_ == 1) {
+    switch (type_) {
+      case AggreType::CNT:
+      case AggreType::CNTALL: {
+        value_.set_int(1);
+      } break;
+      case AggreType::MAX:
+      case AggreType::MIN: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float());
+          } break;
+          case DATES: {
+            value_.set_date(value.get_date());
+          } break;
+          case CHARS: {
+            value_.set_string(value.get_string().c_str());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::AVG:
+      case AggreType::SUM: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      default: {
+        LOG_WARN("unsupported aggre type. %d", type_);
+        return RC::INTERNAL;
+      } break;
+    }
+  } else {
+    switch (type_) {
+      case AggreType::CNT:
+      case AggreType::CNTALL: {
+        value_.set_int(cnt_);
+      } break;
+      case AggreType::MAX: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(std::max(value.get_int(), value_.get_int()));
+          } break;
+          case FLOATS: {
+            value_.set_float(std::max(value.get_float(), value_.get_float()));
+          } break;
+          case DATES: {
+            value_.set_date(std::max(value.data(), value_.data()));
+          } break;
+          case CHARS: {
+            value_.set_string(std::max(value.get_string().c_str(), value_.get_string().c_str()));
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::MIN: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(std::min(value.get_int(), value_.get_int()));
+          } break;
+          case FLOATS: {
+            value_.set_float(std::min(value.get_float(), value_.get_float()));
+          } break;
+          case DATES: {
+            value_.set_date(std::min(value.data(), value_.data()));
+          } break;
+          case CHARS: {
+            value_.set_string(std::min(value.get_string().c_str(), value_.get_string().c_str()));
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::AVG:
+      case AggreType::SUM: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int() + value_.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float() + value_.get_float());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      default: {
+        LOG_WARN("unsupported aggre type. %d", type_);
+        return RC::INTERNAL;
+      } break;
+    }
+  }
+  value = value_;
+  if (type_ == AggreType::AVG) {
+    value.set_float(value.get_float() / cnt_);
+  }
+  return RC::SUCCESS;
+}
+
+RC AggreExpr::try_get_value(Value &value) const {
+  value = value_;
+  if (cnt_ == 0) {
+    LOG_WARN("aggregate function has no value");
+    return RC::INTERNAL;
+  }
+  if (type_ == AggreType::AVG) {
+    value.set_float(value.get_float() / cnt_);
+  }
+  return RC::SUCCESS;
 }

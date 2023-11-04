@@ -72,19 +72,6 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
       bool with_table_name = select_stmt->tables().size() > 1;
       auto &aliases = select_stmt->query_aliases();
-      if (select_stmt->is_aggre()) {
-        auto &aggre_types = select_stmt->aggre_types();
-        for (int i = 0; i < aggre_types.size(); i++) {
-          std::string alias = aggre_to_string(aggre_types[i]);
-          if (aggre_types[i] != AggreType::CNTALL) {
-            alias += "(";
-            alias += aliases[i];
-            alias += ")";
-          }
-          schema.append_cell(alias.c_str());
-        }
-        break;
-      }
       for (int i = 0; i < aliases.size(); i++) {
         schema.append_cell(aliases[i].c_str());
       }

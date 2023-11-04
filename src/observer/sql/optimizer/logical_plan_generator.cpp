@@ -149,7 +149,7 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   if (is_aggre) {
-    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator(select_stmt->aggre_types()));
+    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator());
     aggregation_oper->add_child(std::move(project_oper));
     logical_operator.swap(aggregation_oper);
   } else {

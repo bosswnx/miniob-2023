@@ -146,6 +146,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  AggreType                         aggre_type;
 }
 
 %token <number> P_INT
@@ -177,8 +178,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <ID_list>             ID_list
-%type <rel_attr_list>       aggre_attr
-%type <rel_attr_list>       aggre_list
 %type <rel_attr_list>       attr_list
 %type <order_by_type>       order_by_type
 %type <order_by_body>       order_by_body
@@ -210,6 +209,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            help_stmt
 %type <sql_node>            exit_stmt
 %type <sql_node>            command_wrapper
+%type <aggre_type>          aggre_type
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
 
@@ -752,6 +752,17 @@ expression:
       $$ = new RelAttrExpr("*", "*");
       $$->set_name(token_name(sql_string, &@$));
     }
+    | aggre_type LBRACE expression_list RBRACE {
+      if ($3 == nullptr || $3->size() > 1) {
+        $$ = new AggreExpr($1, nullptr);
+      } else {
+        $$ = new AggreExpr($1, (*$3)[0]);
+      }
+      if ($3 != nullptr) {
+        delete $3;
+      }
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
@@ -774,7 +785,7 @@ expression:
     ;
 
 select_attr:
-    rel_attr aggre_list {
+    rel_attr attr_list {
       if ($2 != nullptr) {
         $$ = $2;
       } else {
@@ -783,17 +794,9 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
-    | aggre_attr aggre_list {
-      if ($2 != nullptr) {
-        $$ = $2;
-      } else {
-        $$ = new std::vector<RelAttrSqlNode>;
-      }
-      $$->insert($$->end(), $1->begin(), $1->end());
-      delete $1;
-    }
     ;
 
+/*
 aggre_attr:
     MAX LBRACE RBRACE {
       $$ = new std::vector<RelAttrSqlNode>;
@@ -861,9 +864,10 @@ aggre_attr:
       delete $3;
     }
     ;
+*/
 
+/*
 aggre_list:
-    /* empty */
     {
       $$ = nullptr;
     }
@@ -886,6 +890,7 @@ aggre_list:
       delete $2;
     }
     ;
+*/
 
 rel_attr:
     expression {
@@ -1221,6 +1226,14 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | IS_NOT { $$ = IS_NOT_; }
     | IS { $$ = IS_; }
+    ;
+
+aggre_type:
+      MAX { $$ = AggreType::MAX; }
+    | MIN { $$ = AggreType::MIN; }
+    | SUM { $$ = AggreType::SUM; }
+    | CNT { $$ = AggreType::CNT; }
+    | AVG { $$ = AggreType::AVG; }
     ;
 
 load_data_stmt:
