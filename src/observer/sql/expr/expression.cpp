@@ -320,11 +320,41 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
   RC rc;
 
   if (left_->type() == ExprType::SUBQUERY && right_->type() == ExprType::SUBQUERY) {
-    LOG_WARN("not support subquery in both side of comparison");
-    return RC::INVALID_ARGUMENT;
-  }
-  
-  if (left_->type() == ExprType::SUBQUERY || right_->type() == ExprType::SUBQUERY) {
+    // 双边的值都只能有一个
+    SubqueryExpr *left_subquery_expr;
+    SubqueryExpr *right_subquery_expr;
+    Value* left_sub_query_value;
+    Value* right_sub_query_value;
+    left_subquery_expr = static_cast<SubqueryExpr *>(left_.get());
+    right_subquery_expr = static_cast<SubqueryExpr *>(right_.get());
+    rc = left_->get_value(tuple, left_value); 
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    Value test;
+    rc = left_->get_value(tuple, test);
+    if (rc != RC::RECORD_EOF) {
+      LOG_WARN("we only support 1 rows for subquery result rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, test);
+    if (rc != RC::RECORD_EOF) {
+      LOG_WARN("we only support 1 rows for subquery result rc=%s", strrc(rc));
+      return rc;
+    }
+    bool bool_value = false;
+    rc = compare_value(left_value, right_value, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
+    // WARN: 这里有一个非常大的问题: 在mysql中，是支持一行多个cells比较的，而这里如果有多个cells则会直接报错
+  } else if (left_->type() == ExprType::SUBQUERY || right_->type() == ExprType::SUBQUERY) {
     SubqueryExpr *subquery_expr;
     Value* sub_query_value;
     if (left_->type() == ExprType::SUBQUERY) {

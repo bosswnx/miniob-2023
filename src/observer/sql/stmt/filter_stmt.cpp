@@ -126,7 +126,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
-  } else if (condition.sub_select == 1) {
+  } else if (condition.sub_select == 1 || condition.sub_select == 3) {
     if(condition.left_sub_select->flag == SCF_SELECT) {
       // 普通的子查询语句（select）
       FilterObj filter_obj;
@@ -166,7 +166,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_right(filter_obj);
-  } else if (condition.sub_select == 2) {
+  } else if (condition.sub_select == 2 || condition.sub_select == 3) {
     // FilterObj filter_obj;
     // filter_obj.init_sub_select_stmt(condition.right_select_stmt);
     // filter_unit->set_right(filter_obj);
