@@ -102,16 +102,27 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
-  
+
   // 左 filterObj
   if (condition.left_is_attr ) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
+    if (condition.is_left_main_) {
+      // 如果这个是主查询中的字段
+      table = db->find_table(condition.left_attr.relation_name.c_str());
+      if (table == nullptr) {
+        rc = RC::SCHEMA_TABLE_NOT_EXIST;
+        return rc;
+      }
+      field = table->table_meta().field(condition.left_attr.attribute_name.c_str());
+    } else {
+      rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
     }
+
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));
     filter_unit->set_left(filter_obj);
@@ -137,10 +148,20 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   if (condition.right_is_attr) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
+    if (condition.is_right_main_) {
+      // 如果这个是主查询中的字段
+      table = db->find_table(condition.right_attr.relation_name.c_str());
+      if (table == nullptr) {
+        rc = RC::SCHEMA_TABLE_NOT_EXIST;
+        return rc;
+      }
+      field = table->table_meta().field(condition.right_attr.attribute_name.c_str());
+    } else {
+      rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
     }
     FilterObj filter_obj;
     filter_obj.init_attr(Field(table, field));

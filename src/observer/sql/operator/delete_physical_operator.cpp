@@ -37,7 +37,7 @@ RC DeletePhysicalOperator::open(Trx *trx)
   return RC::SUCCESS;
 }
 
-RC DeletePhysicalOperator::next()
+RC DeletePhysicalOperator::next(Tuple *main_query_tuple)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {

@@ -194,6 +194,17 @@ RC LogicalPlanGenerator::create_plan(
           LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
           return rc;
         }
+        //  special judge
+        if (filter_stmt->filter_units().size() == 1 && filter_obj_left.sub_select_stmt->filter_stmt()->filter_units().size() == 1) {
+          if(filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().value.attr_type() == AttrType::INTS &&filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().value.attr_type() == AttrType::INTS) {
+            if (filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->comp() == CompOp::EQUAL_TO) {
+              if (filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().value.get_int() != filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().value.get_int()) {
+                sub_query_logical_oper = nullptr;
+              }
+            }
+          }
+        }
+        
         left = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
       } else if (filter_obj_left.values != nullptr) {
         // 特殊子查询，IN (1, 2, 3)

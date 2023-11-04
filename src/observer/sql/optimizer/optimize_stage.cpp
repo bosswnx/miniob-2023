@@ -77,6 +77,7 @@ RC OptimizeStage::optimize(unique_ptr<LogicalOperator> &oper)
 RC OptimizeStage::generate_physical_plan(
     unique_ptr<LogicalOperator> &logical_operator, unique_ptr<PhysicalOperator> &physical_operator)
 {
+  // 有且仅有主查询会调用这个函数
   RC rc = RC::SUCCESS;
   rc = physical_plan_generator_.create(*logical_operator, physical_operator);
   if (rc != RC::SUCCESS) {

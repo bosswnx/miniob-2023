@@ -148,6 +148,9 @@ struct ConditionSqlNode
   
   SelectStmt*         left_select_stmt; ///< left-hand side select stmt
   SelectStmt*         right_select_stmt;///< right-hand side select stmt
+
+  bool is_left_main_ = false; // left attr 是否是主表的属性
+  bool is_right_main_ = false; // right attr 是否是主表的属性
 };
 
 struct JoinSqlNode

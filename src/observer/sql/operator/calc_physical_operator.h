@@ -41,7 +41,7 @@ public:
   }
 
   RC open(Trx *trx) override { return RC::SUCCESS;}
-  RC next() override
+  RC next(Tuple *main_query_tuple = nullptr) override
   {
     RC rc = RC::SUCCESS;
     if (emitted_) {

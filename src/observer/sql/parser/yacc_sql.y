@@ -1212,6 +1212,17 @@ condition:
       $$->right_sub_select = $2;
       $$->sub_select = 2;
     }
+    | sub_select_stmt comp_op sub_select_stmt
+    {
+      // EXISTS/NOT EXISTS
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->right_is_attr = 0;
+      $$->comp = $2;
+      $$->left_sub_select = $1;
+      $$->right_sub_select = $3;
+      $$->sub_select = 3;
+    }
     ;
 
 comp_op:

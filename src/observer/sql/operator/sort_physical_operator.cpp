@@ -126,7 +126,7 @@ bool cmp(const ValueListTuple &a, const ValueListTuple &b, std::vector<Field> &o
   return ret < 0;
 }
 
-RC SortPhysicalOperator::next() {
+RC SortPhysicalOperator::next(Tuple *main_query_tuple) {
     if (index_ < tuples_.size()) {
         tuple_.set_tuple(&tuples_[index_++]);
         return RC::SUCCESS;

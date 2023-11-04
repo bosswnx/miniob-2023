@@ -41,7 +41,7 @@ RC AggregationPhysicalOperator::open(Trx *trx) {
   return RC::SUCCESS;
 }
 
-RC AggregationPhysicalOperator::next() {
+RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
   if (finished_) {
     return RC::RECORD_EOF;
   }
@@ -54,7 +54,7 @@ RC AggregationPhysicalOperator::next() {
   vector<Value> cells(aggre_types_.size());
   bool initialized = false;
   vector<int> count(aggre_types_.size());
-  while ((rc = child->next()) == RC::SUCCESS) {
+  while ((rc = child->next(main_query_tuple)) == RC::SUCCESS) {
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));

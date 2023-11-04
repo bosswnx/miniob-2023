@@ -117,7 +117,7 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
     return RC::SUCCESS;
 }
 
-RC UpdatePhysicalOperator::next()
+RC UpdatePhysicalOperator::next(Tuple *main_query_tuple)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {

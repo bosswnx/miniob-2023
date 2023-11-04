@@ -47,7 +47,8 @@ public:
 public:
   static RC create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
       std::shared_ptr<std::unordered_map<string,string>> name2alias = nullptr,
-      std::shared_ptr<std::unordered_map<string,string>> alias2name = nullptr);
+      std::shared_ptr<std::unordered_map<string,string>> alias2name = nullptr,
+      std::shared_ptr<std::vector<string>> main_relation_names = nullptr);
 
 public:
   const std::vector<Table *> &tables() const
