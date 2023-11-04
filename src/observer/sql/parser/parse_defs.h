@@ -153,6 +153,9 @@ struct ConditionSqlNode
 
   bool is_left_main_ = false; // left attr 是否是主表的属性
   bool is_right_main_ = false; // right attr 是否是主表的属性
+
+  // 类型 and或者or
+  char conjunction_type = 0; // 0: no conjunction, 1: and, 2: or
 };
 
 struct JoinSqlNode

@@ -106,6 +106,7 @@ WHERE                                   RETURN_TOKEN(WHERE);
 "ORDER BY"                              RETURN_TOKEN(ORDER_BY);
 ASC                                     RETURN_TOKEN(ASC);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);
 VALUES                                  RETURN_TOKEN(VALUES);
