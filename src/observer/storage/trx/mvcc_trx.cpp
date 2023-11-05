@@ -188,7 +188,13 @@ RC MvccTrx::delete_record(Table * table, Record &record)
 }
 
 RC MvccTrx::update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values){
-  // todo 
+  // todo
+  // 由于并不需要实现并发，所以这里可以简单的直接更新
+  RC rc = table->update_record(old_record, field_metas, values);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to update record into table. rc=%s", strrc(rc));
+    return rc;
+  }
   return RC::SUCCESS;
 }
 
