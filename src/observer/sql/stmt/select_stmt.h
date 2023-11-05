@@ -20,7 +20,9 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 
 #include "common/rc.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
 
@@ -85,6 +87,51 @@ public:
   static RC check_parent_relation(Expression *expr, 
       std::shared_ptr<std::unordered_map<string, string>> parent_alias2name, 
       const std::vector<string> &main_relation_names, bool &is_parent_relation);
+
+  // get query field by expr。
+  // 不维护偏移量和index
+  // 此方法用于create table select
+  std::vector<FieldMeta> true_query_fields() {
+    std::vector<FieldMeta> ret;
+    
+    for (int i=0; i<query_exprs_.size(); ++i) {
+      // 类型转换，分情况讨论。有 FieldExpr，有 AggreExpr，有 ArithmeticExpr
+      if (query_exprs_[i]->type() == ExprType::FIELD) {
+        FieldExpr *field_expr = static_cast<FieldExpr *>(query_exprs_[i].get());
+        ret.push_back(*field_expr->field().meta());
+      } else if (query_exprs_[i]->type() == ExprType::ARITHMETIC) {
+        ArithmeticExpr *arithmetic_expr = static_cast<ArithmeticExpr *>(query_exprs_[i].get());
+        std::string name = arithmetic_expr->name();
+        AttrType type = arithmetic_expr->value_type();
+        int len;
+        switch (type) {
+          case AttrType::INTS:
+            len = sizeof(int);
+            break;
+          case AttrType::FLOATS:
+            len = sizeof(float);
+            break;
+          case AttrType::CHARS:
+            len = 1024;
+            break;
+          default:
+            return ret;
+        }
+        FieldMeta field_meta;
+        field_meta.init(name.c_str(), type, 0, len, true, true, 0);
+        ret.push_back(field_meta);
+      } else if (query_exprs_[i]->type() == ExprType::VALUE) {
+        ValueExpr *value_expr = static_cast<ValueExpr *>(query_exprs_[i].get());
+        std::string name = value_expr->name();
+        AttrType type = value_expr->value_type();
+        Value value = value_expr->get_value();
+        FieldMeta field_meta;
+        field_meta.init(name.c_str(), type, 0, value.length(), true, value.get_null_or_(), 0);
+        ret.push_back(field_meta);
+      }
+    }
+    return ret;
+  }
 
 private:
   std::vector<std::unique_ptr<Expression>> query_exprs_;

@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/physical_operator.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
+#include "storage/field/field_meta.h"
 
 class Db;
 
@@ -54,14 +55,14 @@ public:
   static RC create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt);
 
   //get query fields
-  const std::vector<Field> &query_fields() const { return query_fields_; }
+  const std::vector<FieldMeta> &query_fields_meta() const { return query_fields_meta_; }
   //set query fields
-  void set_query_fields(const std::vector<Field> &query_fields) { query_fields_ = query_fields; }
+  void set_query_fields(const std::vector<FieldMeta> &query_fields_meta) { query_fields_meta_ = query_fields_meta; }
 
 private:
   std::string table_name_;
   std::vector<AttrInfoSqlNode> attr_infos_;
   SelectStmt *select_stmt_ = nullptr;
   std::unique_ptr<PhysicalOperator> physical_operator_ = nullptr;
-  std::vector<Field> query_fields_;
+  std::vector<FieldMeta> query_fields_meta_;
 };

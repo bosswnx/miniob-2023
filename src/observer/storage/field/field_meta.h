@@ -47,6 +47,14 @@ public:
 public:
   void desc(std::ostream &os) const;
 
+  // set const value
+  void set_const_value(Value &value) {
+    const_value_ = value;
+  }
+  Value get_const_value() {
+    return const_value_;
+  }
+
 public:
   void to_json(Json::Value &json_value) const;
   static RC from_json(const Json::Value &json_value, FieldMeta &field, int index);
@@ -60,4 +68,6 @@ protected:
   int  index_;
   bool is_null_ = false;
   bool value_null_ = false;
+
+  Value const_value_;
 };

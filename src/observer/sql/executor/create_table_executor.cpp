@@ -44,18 +44,19 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
     // create table as select
 
     if (!create_table_stmt->attr_infos().empty()) {
+      // 指定了字段信息
       rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
     } else {
       std::vector<AttrInfoSqlNode> attr_infos;
-      for (int i = 0; i < create_table_stmt->query_fields().size(); ++i) {
+      for (int i = 0; i < create_table_stmt->query_fields_meta().size(); ++i) {
         AttrInfoSqlNode attr_info;
-        attr_info.is_null = create_table_stmt->query_fields()[i].meta()->is_null();
-        attr_info.name = create_table_stmt->query_fields()[i].meta()->name();
-        attr_info.type = create_table_stmt->query_fields()[i].meta()->type();
-        attr_info.length = create_table_stmt->query_fields()[i].meta()->len();
+        attr_info.is_null = create_table_stmt->query_fields_meta()[i].is_null();
+        attr_info.name = create_table_stmt->query_fields_meta()[i].name();
+        attr_info.type = create_table_stmt->query_fields_meta()[i].type();
+        attr_info.length = create_table_stmt->query_fields_meta()[i].len();
         attr_infos.push_back(attr_info);
       }
-      rc = session->get_current_db()->create_table(table_name, create_table_stmt->query_fields().size(), attr_infos.data());
+      rc = session->get_current_db()->create_table(table_name, attr_infos.size(), attr_infos.data());
     }
 
     // open physical operator
@@ -68,10 +69,12 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
       Record record;
       std::vector<Value> values_;
 
+      // 计算record字段个数
       int size = 0;
       if (create_table_stmt->attr_infos().empty()) {
         size = tuple->cell_num();
       } else {
+        // 指定了字段信息
         size = create_table_stmt->attr_infos().size();
       }
       for (int i = 0; i < size; ++i) {
@@ -79,6 +82,8 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
         tuple->cell_at(i, value);
         values_.push_back(value);
       }
+
+      // 插入record
       rc = table_->make_record(static_cast<int>(values_.size()), values_.data(), record);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to make record. rc=%s", strrc(rc));

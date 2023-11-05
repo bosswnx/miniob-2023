@@ -79,7 +79,10 @@ RC ResolveStage::handle_request(SQLStageEvent *sql_event)
     if (sql_node->create_table.sub_select != nullptr) {
       CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
       create_table_stmt->set_select_stmt(select_stmt);
-      create_table_stmt->set_query_fields(select_stmt->query_fields());
+      // 将select_stmt的query_exprs赋值给create_table_stmt的query_names
+      // create_table_stmt->set_query_names(select_stmt->query_names());
+      // create_table_stmt->set_query_exprs(select_stmt->query_exprs());
+      create_table_stmt->set_query_fields(select_stmt->true_query_fields());
     }
   }
 
