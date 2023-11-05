@@ -689,7 +689,14 @@ order_by_list:
     ;
 
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
-    SELECT select_attr FROM relation rel_list join_list where order_by_list
+    SELECT select_attr {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+    }
+    | SELECT select_attr FROM relation rel_list join_list where order_by_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {

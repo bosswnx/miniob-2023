@@ -364,6 +364,54 @@ RC SelectStmt::convert_alias_to_name(Expression *expr, std::shared_ptr<std::unor
   return RC::SUCCESS;
 }
 
+RC SelectStmt::check_have_relattr(Expression *expr, bool &have_relattr) {
+  if (expr->type() == ExprType::VALUE) {
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::ARITHMETIC) {
+    ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr);
+    if (arith_expr->left() != nullptr) {
+      RC rc = SelectStmt::check_have_relattr(arith_expr->left().get(), have_relattr);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check have relattr");
+        return rc;
+      }
+    }
+    if (arith_expr->right() != nullptr) {
+      RC rc = SelectStmt::check_have_relattr(arith_expr->right().get(), have_relattr);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check have relattr");
+        return rc;
+      }
+    }
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::AGGREGATION) {
+    LOG_WARN("invalid aggre expr");
+    return RC::INVALID_ARGUMENT;
+  }
+  if (expr->type() == ExprType::FUNCTION) {
+    FuncExpr *func_expr = static_cast<FuncExpr *>(expr);
+    if (func_expr->child() == nullptr) {
+      LOG_WARN("invalid function expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    RC rc = SelectStmt::check_have_relattr(func_expr->child().get(), have_relattr);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to check have relattr");
+      return rc;
+    }
+    return rc;
+  }
+  // 只剩下 ATTR 了
+  if (expr->type() != ExprType::RELATTR) {
+    LOG_WARN("invalid expr type: %d", expr->type());
+    return RC::INVALID_ARGUMENT;
+  }
+  have_relattr = true;
+  return RC::SUCCESS;
+}
+
 RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
     std::shared_ptr<std::unordered_map<string, string>> name2alias,
     std::shared_ptr<std::unordered_map<string, string>> alias2name,
@@ -555,10 +603,31 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   bool with_table_name = tables.size() > 1;  // 是否需要表名
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
+    // 如果 relation 为空，说明是一个表达式，检查没有 attrexpr 后直接加入到 query_exprs 中
+    RC rc = RC::SUCCESS;
+    auto expr = std::unique_ptr<Expression>(relation_attr.expr);
+    if (tables.empty()) {
+      bool have_relattr = false;
+      rc = SelectStmt::check_have_relattr(expr.get(), have_relattr);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check have relattr");
+        return rc;
+      }
+      if (have_relattr) {
+        LOG_WARN("invalid selection. no relation in from list.");
+        return RC::INVALID_ARGUMENT;
+      }
+      if (relation_attr.alias.size()) {
+        query_aliases.push_back(relation_attr.alias);
+      } else {
+        query_aliases.push_back(expr->name());
+      }
+      query_exprs.push_back(std::move(expr));
+      continue;
+    }
     bool is_aggre = false;
     bool is_attr = false;
-    auto expr = std::unique_ptr<Expression>(relation_attr.expr);
-    RC rc = SelectStmt::check_have_aggre(expr, is_aggre, is_attr);
+    rc = SelectStmt::check_have_aggre(expr, is_aggre, is_attr);
     aggre_stat |= (is_aggre ? 2 : 1);
     if (aggre_stat == 3) {
       LOG_WARN("both have aggregation and normal selection.");

@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/aggre_logical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
+#include "sql/operator/no_table_select_logical_operator.h"
 #include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
@@ -27,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
+#include "sql/operator/no_table_select_logical_operator.h"
 
 #include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
@@ -141,11 +143,15 @@ RC LogicalPlanGenerator::create_plan(
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));
+    } else {
+      predicate_oper->add_child(unique_ptr<NoTableSelectLogicalOperator>(new NoTableSelectLogicalOperator));
     }
     project_oper->add_child(std::move(predicate_oper));
   } else {
     if (table_oper) {
       project_oper->add_child(std::move(table_oper));
+    } else {
+      project_oper->add_child(unique_ptr<NoTableSelectLogicalOperator>(new NoTableSelectLogicalOperator));
     }
   }
 

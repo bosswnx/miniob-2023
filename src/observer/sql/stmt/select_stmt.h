@@ -91,6 +91,8 @@ public:
   static RC convert_alias_to_name(Expression *expr, 
       std::shared_ptr<std::unordered_map<string, string>> alias2name);
 
+  static RC check_have_relattr(Expression *expr, bool &have_relattr);
+
   // get query field by expr。
   // 不维护偏移量和index
   // 此方法用于create table select
