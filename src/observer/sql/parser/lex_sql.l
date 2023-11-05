@@ -128,6 +128,7 @@ NULL                                    RETURN_TOKEN(NULL_T);
 
 LENGTH                                  RETURN_TOKEN(LENGTH);
 ROUND                                   RETURN_TOKEN(ROUND);
+DATE_FORMAT                             RETURN_TOKEN(DATE_FORMAT);
 
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);

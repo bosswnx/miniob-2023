@@ -959,7 +959,7 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
         LOG_WARN("unsupported attr type. %d", child_value.attr_type());
         return RC::INVALID_ARGUMENT;
       }
-      rc = round_digits_->try_get_value(round_digits);
+      rc = param_->try_get_value(round_digits);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to get value of round digits expression. rc=%s", strrc(rc));
         return rc;
@@ -992,6 +992,49 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
         tmp *= pow(10, -rd);
         value.set_float(tmp);
       }
+    } break;
+    case FuncType::DATE_FORMAT: {
+      Value format;
+      if (child_value.attr_type() != DATES) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      rc = param_->try_get_value(format);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of format expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      if (format.attr_type() != CHARS) {
+        LOG_WARN("unsupported attr type. %d", format.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      string fmt = format.get_string();
+      date d = child_value.get_date();
+      int idx = fmt.find("%Y");  // 四位数年份
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_year()));
+      }
+      idx = fmt.find("%y");  // 两位数年份
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_year() % 100));
+      }
+      idx = fmt.find("%m");  // 月份 01-12
+      if (idx >= 0) {
+        fmt.replace(idx, 2, (d.get_month() < 10 ? "0" : "") + std::to_string(d.get_month()));
+      }
+      idx = fmt.find("%c");  // 月份 1-12
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_month()));
+      }
+      idx = fmt.find("%d");  // 日期
+      if (idx >= 0) {
+        fmt.replace(idx, 2, (d.get_day() < 10 ? "0" : "") + std::to_string(d.get_day()));
+      }
+      idx = fmt.find("%e");  // 日期
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_day()));
+      }
+      value.set_string(fmt);
     } break;
     default: {
       LOG_WARN("unsupported func type. %d", type_);

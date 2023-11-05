@@ -50,6 +50,9 @@ class date
   }
   const int32_t *get_date_value_addr() const { return &datevalue; }
   const int32_t get_date_value() const { return datevalue; }
+  const int get_year() const { return datevalue / 10000; }
+  const int get_month() const { return (datevalue % 10000) / 100; }
+  const int get_day() const { return datevalue % 100; }
   void set_date_value(int32_t val){ datevalue = val; }
   /**
    * @brief 将字符串转换为date

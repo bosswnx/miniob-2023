@@ -120,6 +120,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IS
         LENGTH
         ROUND
+        DATE_FORMAT
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -835,13 +836,19 @@ expression:
     | ROUND LBRACE expression RBRACE {
       FuncExpr *tmp = new FuncExpr(FuncType::ROUND, $3);
       tmp->set_name(token_name(sql_string, &@$));
-      tmp->set_round_digits(new ValueExpr(Value(0)));
+      tmp->set_param(new ValueExpr(Value(0)));
       $$ = tmp;
     }
     | ROUND LBRACE expression COMMA expression RBRACE {
       FuncExpr *tmp = new FuncExpr(FuncType::ROUND, $3);
       tmp->set_name(token_name(sql_string, &@$));
-      tmp->set_round_digits($5);
+      tmp->set_param($5);
+      $$ = tmp;
+    }
+    | DATE_FORMAT LBRACE expression COMMA expression RBRACE {
+      FuncExpr *tmp = new FuncExpr(FuncType::DATE_FORMAT, $3);
+      tmp->set_name(token_name(sql_string, &@$));
+      tmp->set_param($5);
       $$ = tmp;
     }
     | expression '+' expression {

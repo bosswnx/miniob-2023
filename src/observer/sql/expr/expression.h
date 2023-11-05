@@ -59,6 +59,7 @@ enum class FuncType {
   NONE = 0,
   LENGTH,
   ROUND,
+  DATE_FORMAT,
 };
 
 /**
@@ -469,13 +470,9 @@ public:
   RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
   RC try_get_value(Value &value) const override;
 
-  RC get_round_digits(int &round_digits, Trx *trx = nullptr);
-  void set_round_digits(std::unique_ptr<Expression> round_digits) { 
-    round_digits_ = std::move(round_digits); 
-  }
-  void set_round_digits(Expression *round_digits) { 
-    round_digits_.reset(round_digits); 
-  }
+  void set_param(std::unique_ptr<Expression> param) { param_ = std::move(param); }
+  void set_param(Expression *param) { param_ = std::unique_ptr<Expression>(param); }
+  
 
   FuncType func_type() const { return type_; }
 
@@ -483,6 +480,6 @@ public:
 
 private:
   FuncType type_;
-  std::unique_ptr<Expression> round_digits_;
+  std::unique_ptr<Expression> param_;
   std::unique_ptr<Expression> child_;
 };
