@@ -14,9 +14,12 @@ See the Mulan PSL v2 for more details. */
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "sql/operator/physical_operator.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
 
 class Db;
@@ -40,9 +43,25 @@ public:
   const std::string &table_name() const { return table_name_; }
   const std::vector<AttrInfoSqlNode> &attr_infos() const { return attr_infos_; }
 
+  //set selectstmt
+  void set_select_stmt(SelectStmt *select_stmt) { select_stmt_ = select_stmt; }
+  //get
+  SelectStmt *select_stmt() const { return select_stmt_; }
+  //set physical operator
+  void set_physical_operator(std::unique_ptr<PhysicalOperator> physical_operator) { physical_operator_ = std::move(physical_operator); }
+  //get
+  PhysicalOperator *physical_operator() const { return physical_operator_.get(); }
   static RC create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt);
+
+  //get query fields
+  const std::vector<Field> &query_fields() const { return query_fields_; }
+  //set query fields
+  void set_query_fields(const std::vector<Field> &query_fields) { query_fields_ = query_fields; }
 
 private:
   std::string table_name_;
   std::vector<AttrInfoSqlNode> attr_infos_;
+  SelectStmt *select_stmt_ = nullptr;
+  std::unique_ptr<PhysicalOperator> physical_operator_ = nullptr;
+  std::vector<Field> query_fields_;
 };

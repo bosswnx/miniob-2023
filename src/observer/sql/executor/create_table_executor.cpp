@@ -14,13 +14,16 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/executor/create_table_executor.h"
 
+#include "common/rc.h"
 #include "session/session.h"
 #include "common/log/log.h"
+#include "sql/parser/parse_defs.h"
 #include "storage/table/table.h"
 #include "sql/stmt/create_table_stmt.h"
 #include "event/sql_event.h"
 #include "event/session_event.h"
 #include "storage/db/db.h"
+#include "storage/trx/trx.h"
 
 RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
 {
@@ -34,7 +37,62 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
   const int attribute_count = static_cast<int>(create_table_stmt->attr_infos().size());
 
   const char *table_name = create_table_stmt->table_name().c_str();
-  RC rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
+
+  RC rc = RC::SUCCESS;
+
+  if (create_table_stmt->physical_operator() != nullptr) {
+    // create table as select
+
+    if (!create_table_stmt->attr_infos().empty()) {
+      rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
+    } else {
+      std::vector<AttrInfoSqlNode> attr_infos;
+      for (int i = 0; i < create_table_stmt->query_fields().size(); ++i) {
+        AttrInfoSqlNode attr_info;
+        attr_info.is_null = create_table_stmt->query_fields()[i].meta()->is_null();
+        attr_info.name = create_table_stmt->query_fields()[i].meta()->name();
+        attr_info.type = create_table_stmt->query_fields()[i].meta()->type();
+        attr_info.length = create_table_stmt->query_fields()[i].meta()->len();
+        attr_infos.push_back(attr_info);
+      }
+      rc = session->get_current_db()->create_table(table_name, create_table_stmt->query_fields().size(), attr_infos.data());
+    }
+
+    // open physical operator
+    Trx *trx = session->current_trx();
+    rc = create_table_stmt->physical_operator()->open(session->current_trx());
+    Table *table_ = session->get_current_db()->find_table(table_name);
+    while (create_table_stmt->physical_operator()->next() == RC::SUCCESS) {
+      // get tuple
+      Tuple *tuple = create_table_stmt->physical_operator()->current_tuple();
+      Record record;
+      std::vector<Value> values_;
+
+      int size = 0;
+      if (create_table_stmt->attr_infos().empty()) {
+        size = tuple->cell_num();
+      } else {
+        size = create_table_stmt->attr_infos().size();
+      }
+      for (int i = 0; i < size; ++i) {
+        Value value;
+        tuple->cell_at(i, value);
+        values_.push_back(value);
+      }
+      rc = table_->make_record(static_cast<int>(values_.size()), values_.data(), record);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to make record. rc=%s", strrc(rc));
+        return rc;
+      }
+      rc = trx->insert_record(table_, record);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to insert record by transaction. rc=%s", strrc(rc));
+      }
+    }
+  } else {
+    rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
+  }
+
 
   return rc;
 }

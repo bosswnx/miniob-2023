@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/stmt.h"
 #include "event/sql_event.h"
 #include "sql/stmt/select_stmt.h"
+#include "sql/stmt/create_table_stmt.h"
 #include "event/session_event.h"
 
 using namespace std;
@@ -64,6 +65,17 @@ RC OptimizeStage::handle_request(SQLStageEvent *sql_event)
   }
 
   sql_event->set_operator(std::move(physical_operator));
+
+
+  // create table set physical oper
+  Stmt *stmt = sql_event->stmt();
+  if (stmt->type() == StmtType::CREATE_TABLE) {
+    CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
+    if (create_table_stmt->select_stmt() != nullptr) {
+      create_table_stmt->set_physical_operator(std::move(sql_event->physical_operator()));
+    }
+  }
+
 
   return rc;
 }
@@ -108,6 +120,14 @@ RC OptimizeStage::create_logical_plan(SQLStageEvent *sql_event, unique_ptr<Logic
   Stmt *stmt = sql_event->stmt();
   if (nullptr == stmt) {
     return RC::UNIMPLENMENT;
+  }
+
+  if (stmt->type() == StmtType::CREATE_TABLE) {
+    CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
+    if (create_table_stmt->select_stmt() != nullptr) {
+      // create table xx as select ...
+      stmt = create_table_stmt->select_stmt();
+    }
   }
 
   if(stmt->type() == StmtType::SELECT) {
