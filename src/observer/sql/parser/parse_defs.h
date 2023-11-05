@@ -141,8 +141,8 @@ struct ConditionSqlNode
                                    ///< 1时，操作符右边是属性名，0时，是属性值
   // RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Expression *    right_expr;     ///< right-hand side value if right_is_attr = FALSE。 当是 LIKE 时，这里肯定有值（yacc_sql.y 586L）
-  bool left_is_expr;
-  bool right_is_expr;
+  bool left_is_expr = false;
+  bool right_is_expr = false;
 
   char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
   SubSelectSqlNode*   left_sub_select; ///< left-hand side sub select

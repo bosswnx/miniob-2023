@@ -1196,6 +1196,7 @@ condition:
       //$$->right_value = nullptr;
       //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
       //  char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
       $$->sub_select = 2;
       $$->comp = $2;
@@ -1210,6 +1211,7 @@ condition:
       $$->comp = IN_;
       $$->sub_select = 2;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      $$->right_is_expr = false;
       if ($5 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$5);
         delete $5;
@@ -1226,6 +1228,7 @@ condition:
       $$->comp = IN_;
       $$->sub_select = 2;
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
     }
     | expression NI LBRACE value value_list RBRACE {
       // IN/NOT IN
@@ -1237,6 +1240,7 @@ condition:
       $$->comp = NOT_IN;
       $$->sub_select = 2;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      $$->right_is_expr = false;
       if ($5 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$5);
         delete $5;
@@ -1253,6 +1257,7 @@ condition:
       $$->comp = NOT_IN;
       $$->sub_select = 2;
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
     }
     | sub_select_stmt comp_op expression
     {
@@ -1261,6 +1266,7 @@ condition:
       //$$->left_value = nullptr;
       //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
       $$->left_sub_select = $1;
+      $$->left_is_expr = false;
       // $$->right_is_attr = 0;
       $$->right_expr = $3;
       $$->right_is_expr = true;
@@ -1289,6 +1295,8 @@ condition:
       // $$->right_is_attr = 0;
       $$->comp = EXISTS_;
       $$->right_sub_select = $2;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->sub_select = 2;
     }
     | NOT_EXISTS sub_select_stmt
@@ -1307,6 +1315,8 @@ condition:
       // $$->left_is_attr = 0;
       // $$->right_is_attr = 0;
       $$->comp = EXISTS_;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
       if ($4 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$4);
@@ -1323,6 +1333,8 @@ condition:
       // $$->left_is_attr = 0;
       // $$->right_is_attr = 0;
       $$->comp = NOT_EXISTS_;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
       if ($4 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$4);

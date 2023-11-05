@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "storage/index/index.h"
 #include "gtest/gtest.h"
+#include <cmath>
 
 class LogicalOperator;
 class PhysicalOperator;
@@ -1018,6 +1019,10 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
       if (idx >= 0) {
         fmt.replace(idx, 2, std::to_string(d.get_year() % 100));
       }
+      idx = fmt.find("%M");  // 月份英文
+      if (idx >= 0) {
+        fmt.replace(idx, 2, d.get_month_english());
+      }
       idx = fmt.find("%m");  // 月份 01-12
       if (idx >= 0) {
         fmt.replace(idx, 2, (d.get_month() < 10 ? "0" : "") + std::to_string(d.get_month()));
@@ -1025,6 +1030,10 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
       idx = fmt.find("%c");  // 月份 1-12
       if (idx >= 0) {
         fmt.replace(idx, 2, std::to_string(d.get_month()));
+      }
+      idx = fmt.find("%D");  // 月份英文
+      if (idx >= 0) {
+        fmt.replace(idx, 2, d.get_day_english());
       }
       idx = fmt.find("%d");  // 日期
       if (idx >= 0) {

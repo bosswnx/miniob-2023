@@ -87,7 +87,7 @@ RC SelectStmt::get_table_and_field(Db *db, Table *default_table, std::unordered_
 
 // 递归处理 expression，将其中的 RelAttrExpr 转换为 FieldExpr
 RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields)
+    std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields, std::shared_ptr<std::unordered_map<string,string>> alias2name)
 {
   RC rc = RC::SUCCESS;
    if (expr->type() == ExprType::VALUE) {
@@ -96,14 +96,14 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
   if (expr->type() == ExprType::ARITHMETIC) {
     ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr.get());
     if (arith_expr->left() != nullptr) {
-      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->left(), query_fields);
+      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->left(), query_fields, alias2name);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to make field expr");
         return rc;
       }
     }
     if (arith_expr->right() != nullptr) {
-      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->right(), query_fields);
+      rc = SelectStmt::make_field_expr(db, default_table, tables, arith_expr->right(), query_fields, alias2name);
       if (rc != RC::SUCCESS) {
         LOG_WARN("failed to make field expr");
         return rc;
@@ -120,7 +120,7 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
       LOG_WARN("invalid aggre expr");
       return RC::INVALID_ARGUMENT;
     }
-    rc = SelectStmt::make_field_expr(db, default_table, tables, aggre_expr->child(), query_fields);
+    rc = SelectStmt::make_field_expr(db, default_table, tables, aggre_expr->child(), query_fields, alias2name);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to make field expr");
       return rc;
@@ -133,7 +133,7 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
       LOG_WARN("invalid function expr");
       return RC::INVALID_ARGUMENT;
     }
-    rc = SelectStmt::make_field_expr(db, default_table, tables, func_expr->child(), query_fields);
+    rc = SelectStmt::make_field_expr(db, default_table, tables, func_expr->child(), query_fields, alias2name);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to make field expr");
       return rc;
@@ -152,6 +152,9 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
   if (tables->size() > 1 && relattr_expr->table_name().empty()) {
     LOG_WARN("invalid field name while table is *. attr=%s", relattr_expr->field_name().c_str());
     return RC::SCHEMA_FIELD_MISSING;
+  }
+  if (alias2name->find(relattr_expr->table_name()) != alias2name->end()) {
+    relattr_expr->set_table_name((*alias2name)[relattr_expr->table_name()]);
   }
   Table *table = nullptr;
   const FieldMeta *field = nullptr;
@@ -459,6 +462,19 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
 
   // 上下的相对顺序必须这样⬆️ ⬇️。
 
+  // 检查当前查询的 alias 是否重复
+
+  for (int i = 0; i < select_sql.relations.size(); i++) {
+    for (int j = i + 1; j < select_sql.relations.size(); j++) {
+      if (select_sql.relations[i].alias.empty() || select_sql.relations[j].alias.empty()) {
+        continue;
+      }
+      if (select_sql.relations[i].alias == select_sql.relations[j].alias) {
+        LOG_WARN("duplicate alias: %s", select_sql.relations[i].alias.c_str());
+        return RC::INVALID_ARGUMENT;
+      }
+    }
+  }
 
   for (size_t i = 0; i < select_sql.relations.size(); ++i) {
     if (select_sql.relations[i].alias.size()) {
@@ -800,7 +816,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
       // 否则就是复杂的表达式，将其中的 RelAttrExpr 转换为 FieldExpr 后，直接加入到query_exprs中
     } else {
       expr->set_name(expr->name());
-      RC rc = SelectStmt::make_field_expr(db, tables[0], &table_map, expr, query_fields);
+      RC rc = SelectStmt::make_field_expr(db, tables[0], &table_map, expr, query_fields, alias2name);
       if (rc != RC::SUCCESS) {
         LOG_WARN("cannot construct field expr");
         return rc;
