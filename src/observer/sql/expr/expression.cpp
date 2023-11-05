@@ -1017,7 +1017,7 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
       }
       idx = fmt.find("%y");  // 两位数年份
       if (idx >= 0) {
-        fmt.replace(idx, 2, std::to_string(d.get_year() % 100));
+        fmt.replace(idx, 2, (d.get_year() % 100 < 10 ? "0" : "") + std::to_string(d.get_year() % 100));
       }
       idx = fmt.find("%M");  // 月份英文
       if (idx >= 0) {
