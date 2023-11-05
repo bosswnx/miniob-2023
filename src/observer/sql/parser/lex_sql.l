@@ -127,6 +127,7 @@ NULL                                    RETURN_TOKEN(NULL_T);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 
 LENGTH                                  RETURN_TOKEN(LENGTH);
+ROUND                                   RETURN_TOKEN(ROUND);
 
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);

@@ -945,13 +945,53 @@ RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
     LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
     return rc;
   }
-  if (child_value.attr_type() != CHARS) {
-    LOG_WARN("unsupported attr type. %d", child_value.attr_type());
-    return RC::INVALID_ARGUMENT;
-  }
   switch (type_) {
     case FuncType::LENGTH: {
+      if (child_value.attr_type() != CHARS) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
       value.set_int(child_value.get_string().length());
+    } break;
+    case FuncType::ROUND: {
+      Value round_digits;
+      if (child_value.attr_type() != INTS && child_value.attr_type() != FLOATS) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      rc = round_digits_->try_get_value(round_digits);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of round digits expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      if (round_digits.attr_type() != INTS) {
+        LOG_WARN("unsupported attr type. %d", round_digits.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      int rd = round_digits.get_int();
+      if (rd >= 0) {
+        float num = child_value.get_float();
+        float tmp = num * pow(10, rd);
+        int tmp_int = (int)tmp;
+        float tmp_float = (float)tmp_int;
+        if (tmp - tmp_float >= 0.5) {
+          tmp_int++;
+        }
+        tmp = (float)tmp_int;
+        tmp /= pow(10, rd);
+        value.set_float(tmp);
+      } else {
+        float num = child_value.get_float();
+        float tmp = num / pow(10, -rd);
+        int tmp_int = (int)tmp;
+        float tmp_float = (float)tmp_int;
+        if (tmp - tmp_float >= 0.5) {
+          tmp_int++;
+        }
+        tmp = (float)tmp_int;
+        tmp *= pow(10, -rd);
+        value.set_float(tmp);
+      }
     } break;
     default: {
       LOG_WARN("unsupported func type. %d", type_);
