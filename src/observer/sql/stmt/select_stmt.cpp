@@ -312,10 +312,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // 如果有非本查询的 relation，将其转换为 sub_select
   if (!tag_) {
       for (auto &condition: select_sql.conditions) {
-        if (condition.left_is_expr) {
+        // 不是子查询 且 是expression
+        if (condition.sub_select == 0 && condition.left_is_expr) {
           SelectStmt::check_parent_relation(condition.left_expr, alias2name, *main_relation_names, condition.is_left_main_);
         }
-        if (condition.right_is_expr) {
+        if (condition.sub_select == 0 && condition.right_is_expr) {
           SelectStmt::check_parent_relation(condition.right_expr, alias2name, *main_relation_names, condition.is_right_main_);
         }
       }

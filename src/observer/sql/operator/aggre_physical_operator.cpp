@@ -52,7 +52,10 @@ RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
   }
   auto *child = children_[0].get();
   vector<Value> cells;
+
+  bool has = false;
   while ((rc = child->next(main_query_tuple)) == RC::SUCCESS) {
+    has = true;
     auto tuple = static_cast<ProjectTuple*>(child->current_tuple());
     if (nullptr == tuple) {
       LOG_WARN("failed to get current record: %s", strrc(rc));
@@ -68,8 +71,13 @@ RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
   cells.resize(tuple->cell_num());
   for (int i = 0; i < tuple->cell_num(); i++) {
     Value cell;
-    tuple->try_cell_at(i, cell);
-    cells[i] = cell;
+    if (!has) {
+      cell.set_null(true);
+      // 类型要吗？
+    } else {
+      tuple->try_cell_at(i, cell);
+      cells[i] = cell;
+    }
   }
   if (rc != RC::RECORD_EOF) {
     LOG_WARN("failed to get next record: %s", strrc(rc));

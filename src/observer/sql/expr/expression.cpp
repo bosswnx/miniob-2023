@@ -380,7 +380,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
     bool bool_value = false;
     // 循环next子查询的算子，直到找到一个满足条件的值
     while((rc = subquery_expr->get_value(tuple, *sub_query_value, trx)) == RC::SUCCESS) {
-      if (sub_query_value->attr_type() == UNDEFINED) {
+      if (sub_query_value->attr_type() == UNDEFINED && !sub_query_value->get_null_or_()) {
         rc = RC::RECORD_EOF; // maybe wrong
         break;
       }

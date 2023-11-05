@@ -148,11 +148,11 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   bool right_is_value = false;
   Value left_value;
   bool left_is_value = false;
-  if (condition.left_is_expr) {
+  if (condition.sub_select == 0 && condition.left_is_expr) {
     rc = condition.left_expr->try_get_value(left_value);
     left_is_value = rc == RC::SUCCESS;
   }
-  if (condition.right_is_expr) {
+  if (condition.sub_select == 0 && condition.right_is_expr) {
     rc = condition.right_expr->try_get_value(right_value);
     right_is_value = rc == RC::SUCCESS;
   }
