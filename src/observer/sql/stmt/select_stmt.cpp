@@ -337,7 +337,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // 将 where 语句 conditions 里 relation 的 alias 还原为 name
   // TODO: 这里的处理方式不太好，应该在解析语法树的时候就把 alias 还原为 name
   for (auto &condition: select_sql.conditions) {
-    if (condition.left_expr->type() == ExprType::RELATTR) {
+    if (condition.sub_select == 0 && condition.left_expr->type() == ExprType::RELATTR) {
       // cast to RelAttrExp
       auto *relattr_expr = static_cast<RelAttrExpr *>(condition.left_expr);
 
@@ -351,7 +351,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
     //   condition.right_attr.alias = condition.right_attr.relation_name;
     //   condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
     // }
-    if (condition.right_expr->type() == ExprType::RELATTR) {
+    if (condition.sub_select == 0 && condition.right_expr->type() == ExprType::RELATTR) {
       // cast to RelAttrExp
       auto *relattr_expr = static_cast<RelAttrExpr *>(condition.right_expr);
 
