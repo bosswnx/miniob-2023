@@ -338,15 +338,28 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   // TODO: 这里的处理方式不太好，应该在解析语法树的时候就把 alias 还原为 name
   for (auto &condition: select_sql.conditions) {
     if (condition.left_expr->type() == ExprType::RELATTR) {
-      // cast to RelAttrExpr
-      if (alias2name->find(condition.left_expr->name()) != alias2name->end())
+      // cast to RelAttrExp
+      auto *relattr_expr = static_cast<RelAttrExpr *>(condition.left_expr);
+
+      if (alias2name->find(relattr_expr->table_name()) != alias2name->end()) {
+        relattr_expr->set_table_name((*alias2name)[relattr_expr->table_name()]);
+      }
       // condition.left_attr.alias = condition.left_attr.relation_name;
       // condition.left_attr.relation_name = (*alias2name)[condition.left_attr.alias];
-      condition.left_expr->
     }
-    if (condition.left_expr->type() == ExprType::RELATTR && alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
-      condition.right_attr.alias = condition.right_attr.relation_name;
-      condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
+    // if (condition.left_expr->type() == ExprType::RELATTR && alias2name->find(condition.right_attr.relation_name) != alias2name->end()) {
+    //   condition.right_attr.alias = condition.right_attr.relation_name;
+    //   condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
+    // }
+    if (condition.right_expr->type() == ExprType::RELATTR) {
+      // cast to RelAttrExp
+      auto *relattr_expr = static_cast<RelAttrExpr *>(condition.right_expr);
+
+      if (alias2name->find(relattr_expr->table_name()) != alias2name->end()) {
+        relattr_expr->set_table_name((*alias2name)[relattr_expr->table_name()]);
+      }
+      // condition.right_attr.alias = condition.right_attr.relation_name;
+      // condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
     }
   }
 
