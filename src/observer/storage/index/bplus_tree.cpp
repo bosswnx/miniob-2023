@@ -1186,12 +1186,12 @@ RC BplusTreeHandler::crabing_protocal_fetch_page(LatchMemo &latch_memo,
   return rc;
 }
 
-RC BplusTreeHandler::insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *keys, const RID *rid)
+RC BplusTreeHandler::insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *keys, const RID *rid, bool has_null)
 {
   LeafIndexNodeHandler leaf_node(file_header_, frame);
   bool exists = false; // 该数据是否已经存在指定的叶子节点中了
   int insert_position = leaf_node.lookup(key_comparator_, keys, leaf_node.keys_num(), &exists);
-  if (exists) {
+  if (!has_null && exists) {
     LOG_TRACE("entry exists");
     return RC::RECORD_DUPLICATE_KEY;
   }
@@ -1382,7 +1382,7 @@ RC BplusTreeHandler::create_new_tree(const char *keys, const RID *rid)
   return rc;
 }
 
-MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &user_keys, const RID &rid)
+MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &user_keys, const RID &rid, bool has_null)
 {
   MemPoolItem::unique_ptr keys = mem_pool_item_->alloc_unique_ptr();
   if (keys == nullptr) {
@@ -1399,7 +1399,7 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &
     }
     offset += file_header_.attr_lengths[i];
   }
-  if (file_header_.is_unique) {
+  if (file_header_.is_unique && !has_null) {
     memset(static_cast<char *>(keys.get()) + offset, 0, sizeof(rid));
   } else {
     memcpy(static_cast<char *>(keys.get()) + offset, &rid, sizeof(rid));
@@ -1407,17 +1407,17 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_keys(const vector<const char *> &
   return keys;
 }
 
-RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid) {
+RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid, bool is_null) {
   if (user_key == nullptr || rid == nullptr) {
     LOG_WARN("Invalid arguments, key is empty or rid is empty");
     return RC::INVALID_ARGUMENT;
   }
   vector<const char *> user_keys;
   user_keys.push_back(user_key);
-  return insert_entry(user_keys, rid);
+  return insert_entry(user_keys, rid, is_null);
 }
 
-RC BplusTreeHandler::insert_entry(const vector<const char *> &user_keys, const RID *rid)
+RC BplusTreeHandler::insert_entry(const vector<const char *> &user_keys, const RID *rid, bool has_null)
 {
   if (user_keys.empty() || rid == nullptr) {
     LOG_WARN("Invalid arguments, key is empty or rid is empty");
@@ -1451,7 +1451,7 @@ RC BplusTreeHandler::insert_entry(const vector<const char *> &user_keys, const R
     return rc;
   }
 
-  rc = insert_entry_into_leaf_node(latch_memo, frame, keys, rid);
+  rc = insert_entry_into_leaf_node(latch_memo, frame, keys, rid, has_null);
   if (rc != RC::SUCCESS) {
     LOG_TRACE("Failed to insert into leaf of index, rid:%s. rc=%s", rid->to_string().c_str(), strrc(rc));
     return rc;

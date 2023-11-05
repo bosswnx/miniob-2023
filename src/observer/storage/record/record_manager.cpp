@@ -233,12 +233,21 @@ RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
     if (old_values != nullptr) {
       (*old_values)[i].set_type(field_metas[i].type());
       (*old_values)[i].set_data(record_data + field_metas[i].offset(), field_metas[i].len());
+      if(values[i].get_null_or_()){
+        if (field_metas[i].is_null()) {
+          record_data[field_metas[i].index()] = 1;
+        } else {
+          return RC::INTERNAL;
+        }
+      }
+      else {
+        record_data[field_metas[i].index()] = 0;
+      }
+      memcpy(record_data + field_metas[i].offset(), values[i].data(), field_metas[i].len());
     }
-    memcpy(record_data + field_metas[i].offset(), values[i].data(), field_metas[i].len());
-  }
+    }
   // memcpy(record_data, data, record_size);
   frame_->mark_dirty();
-
   return RC::SUCCESS;
 }
 
@@ -593,7 +602,7 @@ RC RecordFileScanner::fetch_next_record()
     record_page_handler_.cleanup();
     rc = record_page_handler_.init(*disk_buffer_pool_, page_num, readonly_);
     if (OB_FAIL(rc)) {
-      LOG_WARN("failed to init record page handler. page_num=%d, rc=%s", page_num, strrc(rc));
+      // LOG_WARN("failed to init record page handler. page_num=%d, rc=%s", page_num, strrc(rc));
       return rc;
     }
 
@@ -639,6 +648,7 @@ RC RecordFileScanner::fetch_next_record_in_page()
 
     // 让当前事务探测一下是否访问冲突，或者需要加锁、等锁等操作，由事务自己决定
     rc = trx_->visit_record(table_, next_record_, readonly_);
+    // rc = RC::SUCCESS;
     if (rc == RC::RECORD_INVISIBLE) {
       // 可以参考MvccTrx，表示当前记录不可见
       // 这种模式仅在 readonly 事务下是有效的

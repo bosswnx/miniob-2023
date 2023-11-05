@@ -17,6 +17,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/aggre_logical_operator.h"
 #include "sql/operator/aggre_physical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
+#include "sql/operator/sort_physical_operator.h"
+#include "sql/operator/logical_operator.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 #include "sql/operator/table_get_logical_operator.h"
@@ -89,6 +92,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
     
     case LogicalOperatorType::AGGREGATION: {
       return create_plan(static_cast<AggregationLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::SORT: {
+      return create_plan(static_cast<SortLogicalOperator &>(logical_operator), oper);
     } break;
 
     default: {
@@ -227,8 +234,12 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
         if (comparison_expr.right()->type() == ExprType::SUBQUERY) {
           SubqueryExpr *subquery_expr = static_cast<SubqueryExpr *>(comparison_expr.right().get());
           unique_ptr<PhysicalOperator> subquery_phy_oper = nullptr;
-          rc = create(*subquery_expr->logical_operator(), subquery_phy_oper);
-          subquery_expr->set_physical_operator(std::move(subquery_phy_oper));
+          if (subquery_expr->logical_operator() == nullptr) {
+            subquery_expr->set_physical_operator(nullptr);
+          } else {
+            rc = create(*subquery_expr->logical_operator(), subquery_phy_oper);
+            subquery_expr->set_physical_operator(std::move(subquery_phy_oper));
+          }
         }
       }
     }
@@ -256,10 +267,9 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   }
 
   ProjectPhysicalOperator *project_operator = new ProjectPhysicalOperator;
-  const vector<Field> &project_fields = project_oper.fields();
-  for (const Field &field : project_fields) {
-    project_operator->add_projection(field.table(), field.meta());
-  }
+  
+  auto &project_exprs = project_oper.expressions();
+  project_operator->add_expressions(std::move(project_exprs));
 
   if (child_phy_oper) {
     project_operator->add_child(std::move(child_phy_oper));
@@ -411,9 +421,34 @@ RC PhysicalPlanGenerator::create_plan(AggregationLogicalOperator &aggre_oper, st
     LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
     return rc;
   }
-  auto aggre_types = aggre_oper.aggre_types();
-  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator(aggre_types));
+  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator());
   aggre_phy_oper->add_child(std::move(child_phy_oper));
   oper = std::move(aggre_phy_oper);
+  return rc;
+}
+
+
+RC PhysicalPlanGenerator::create_plan(SortLogicalOperator &sort_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  RC rc = RC::SUCCESS;
+  vector<unique_ptr<LogicalOperator>> &child_opers = sort_oper.children();
+  if (child_opers.size() != 1) {
+    LOG_WARN("sort operator should have 1 child, but have %d", child_opers.size());
+    return RC::INTERNAL;
+  }
+  // if (child_opers[0]->type() != LogicalOperatorType::PROJECTION) {
+  //   LOG_WARN("sort operator should only have projection operator as child, but doesn't.");
+  //   return RC::INTERNAL;
+  // }
+  unique_ptr<PhysicalOperator> child_phy_oper;
+  LogicalOperator *child_oper = child_opers.front().get();
+  rc = create(*child_oper, child_phy_oper);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
+    return rc;
+  }
+  auto order_by_fields = sort_oper.order_by_fields();
+  unique_ptr<PhysicalOperator> sort_phy_oper(new SortPhysicalOperator(order_by_fields, sort_oper.query_fields(), sort_oper.tables_all_fields()));
+  sort_phy_oper->add_child(std::move(child_phy_oper));
+  oper = std::move(sort_phy_oper);
   return rc;
 }

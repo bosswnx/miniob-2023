@@ -70,11 +70,20 @@ inline std::string aggre_to_string(AggreType aggre_type) {
  */
 struct RelAttrSqlNode
 {
-  std::string relation_name;   ///< relation name (may be NULL) 表名
-  std::string attribute_name;  ///< attribute name              属性名
+  Expression *expr;
   std::string alias; ///< attribute alias (may be NULL) 属性别名
-  AggreType aggre_type;
+  AggreType aggre_type = AggreType::NONE;
+  bool error = false;
+  bool is_asc;
 };
+
+
+/*
+ * @brief 描述一个属性
+ * @ingroup value.is_null
+ * @details 判断是否可以null存储
+*/
+
 
 /**
  * @brief 描述一个relation
@@ -104,6 +113,8 @@ enum CompOp
   NOT_IN,
   EXISTS_,
   NOT_EXISTS_,
+  IS_NOT_,
+  IS_,
   NO_OP,
 };
 
@@ -121,15 +132,17 @@ typedef struct ParsedSqlNode SubSelectSqlNode;
  */
 struct ConditionSqlNode
 {
-  int             left_is_attr;    ///< TRUE if left-hand side is an attribute
+  // int             left_is_expr;    ///< TRUE if left-hand side is an attribute
                                    ///< 1时，操作符左边是属性名，0时，是属性值
-  Value           left_value;      ///< left-hand side value if left_is_attr = FALSE
-  RelAttrSqlNode  left_attr;       ///< left-hand side attribute
+  Expression *    left_expr;      ///< left-hand side value if left_is_attr = FALSE
+  // RelAttrSqlNode  left_attr;       ///< left-hand side attribute
   CompOp          comp;            ///< comparison operator
-  int             right_is_attr;   ///< TRUE if right-hand side is an attribute
+  // int             right_is_attr;   ///< TRUE if right-hand side is an attribute
                                    ///< 1时，操作符右边是属性名，0时，是属性值
-  RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  Value           right_value;     ///< right-hand side value if right_is_attr = FALSE。 当是 LIKE 时，这里肯定有值（yacc_sql.y 586L）
+  // RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
+  Expression *    right_expr;     ///< right-hand side value if right_is_attr = FALSE。 当是 LIKE 时，这里肯定有值（yacc_sql.y 586L）
+  bool left_is_expr;
+  bool right_is_expr;
 
   char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
   SubSelectSqlNode*   left_sub_select; ///< left-hand side sub select
@@ -137,6 +150,12 @@ struct ConditionSqlNode
   
   SelectStmt*         left_select_stmt; ///< left-hand side select stmt
   SelectStmt*         right_select_stmt;///< right-hand side select stmt
+
+  bool is_left_main_ = false; // left attr 是否是主表的属性
+  bool is_right_main_ = false; // right attr 是否是主表的属性
+
+  // 类型 and或者or
+  char conjunction_type = 0; // 0: no conjunction, 1: and, 2: or
 };
 
 struct JoinSqlNode
@@ -162,6 +181,8 @@ struct SelectSqlNode
   std::vector<RelationSqlNode>    relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<JoinSqlNode>        joins;         ///< join clause
+  std::vector<RelAttrSqlNode>     order_attrs;   ///< order by clause
+  // std::vector<char> order_types;   /// 1: asc, 2: desc 这个放在 RelAttrSqlNode 中
 };
 
 
@@ -231,6 +252,7 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  bool        is_null;    ///< 是否可以null存储
 };
 
 /**
@@ -242,6 +264,7 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;         ///< Relation name
   std::vector<AttrInfoSqlNode> attr_infos;            ///< attributes
+  SubSelectSqlNode*            sub_select;            ///< select stmt
 };
 
 /**

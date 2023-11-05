@@ -105,10 +105,12 @@ RC BplusTreeIndex::insert_entry(const char *record, const RID *rid)
 {
   // record 是整行记录的起始地址，需要加上字段的偏移量
   vector<const char *> user_keys;
+  bool is_null = false;
   for (const auto &field_meta : field_metas_) {
     user_keys.emplace_back(record + field_meta.offset());
+    is_null |= record[field_meta.index()];
   }
-  return index_handler_.insert_entry(user_keys, rid);
+  return index_handler_.insert_entry(user_keys, rid, is_null);
 }
 
 RC BplusTreeIndex::delete_entry(const char *record, const RID *rid)

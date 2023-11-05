@@ -14,5 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/project_logical_operator.h"
 
-ProjectLogicalOperator::ProjectLogicalOperator(const std::vector<Field> &fields) : fields_(fields)
-{}
+ProjectLogicalOperator::ProjectLogicalOperator(vector<std::unique_ptr<Expression>> &exprs)
+{
+    expressions_.swap(exprs);
+}

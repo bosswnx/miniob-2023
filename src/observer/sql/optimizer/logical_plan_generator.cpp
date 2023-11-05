@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/aggre_logical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
+#include "sql/operator/sort_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
@@ -27,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/explain_logical_operator.h"
 
+#include "sql/parser/value.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/select_stmt.h"
@@ -40,6 +42,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/expr/expression.h"
+#include "storage/table/table.h"
 
 
 using namespace std;
@@ -97,9 +100,18 @@ RC LogicalPlanGenerator::create_plan(
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables = select_stmt->tables();
-  const std::vector<Field> &all_fields = select_stmt->query_fields();
+  const auto &all_fields = select_stmt->query_fields();
+  auto &all_exprs = select_stmt->query_exprs();
+  std::vector<Field> tables_all_fields;
+
   const auto is_aggre = select_stmt->is_aggre();
   for (Table *table : tables) {
+
+    for (int i = table->table_meta().sys_field_num(); i < table->table_meta().field_num(); i++) {
+      const FieldMeta *field_meta = table->table_meta().field(i);
+      tables_all_fields.push_back(Field(table, field_meta));
+    }
+
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
       if (0 == strcmp(field.table_name(), table->name())) {
@@ -125,7 +137,7 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
+  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_exprs));
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));
@@ -138,11 +150,17 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   if (is_aggre) {
-    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator(select_stmt->aggre_types()));
+    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator());
     aggregation_oper->add_child(std::move(project_oper));
     logical_operator.swap(aggregation_oper);
   } else {
     logical_operator.swap(project_oper);
+  }
+
+  if (select_stmt->order_by_fields().size() != 0) {
+    unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields));
+    sort_oper->add_child(std::move(logical_operator));
+    logical_operator.swap(sort_oper);
   }
   return RC::SUCCESS;
 }
@@ -151,10 +169,18 @@ RC LogicalPlanGenerator::create_plan(
     FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
-  for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left = filter_unit->left();
-    const FilterObj &filter_obj_right = filter_unit->right();
+  std::vector<ConjunctionExpr::Type> conjunction_types;
+  std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
+  for (FilterUnit *filter_unit : filter_units) {
+    if (filter_unit->conjunction_type() == 2) {
+      conjunction_types.push_back(ConjunctionExpr::Type::OR);
+    } else {
+      // 暂时其他的都设为 and
+      conjunction_types.push_back(ConjunctionExpr::Type::AND);
+    }
+    
+    FilterObj &filter_obj_left = filter_unit->left();
+    FilterObj &filter_obj_right = filter_unit->right();
 
     unique_ptr<Expression> left;
     unique_ptr<Expression> right;
@@ -162,8 +188,8 @@ RC LogicalPlanGenerator::create_plan(
     // unique_ptr<Expression> left(filter_obj_left.is_attr
     //                                   ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
     //                                   : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
-    if (filter_obj_left.is_attr) {
-      left = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_left.field)));
+    if (filter_obj_left.is_expr) {
+      left = std::move(filter_obj_left.expr);
     } else {
       if (filter_obj_left.sub_select_stmt != nullptr) {
         // 创建子查询的逻辑计划
@@ -177,12 +203,28 @@ RC LogicalPlanGenerator::create_plan(
           LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
           return rc;
         }
+        // //  special judge
+        // if (filter_stmt->filter_units().size() == 1 && filter_obj_left.sub_select_stmt->filter_stmt()->filter_units().size() == 1) {
+        //   if(filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->value_type() == AttrType::INTS 
+        //       && filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->value_type() == AttrType::INTS) {
+        //     if (filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->comp() == CompOp::EQUAL_TO) {
+        //       Value left_value;
+        //       Value right_value;
+        //       filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->try_get_value(left_value);
+        //       filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->right().expr->try_get_value(right_value);
+        //       if (left_value.get_int() != right_value.get_int()) {
+        //         sub_query_logical_oper = nullptr;
+        //       }
+        //     }
+        //   }
+        // }
+        
         left = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
       } else if (filter_obj_left.values != nullptr) {
         // 特殊子查询，IN (1, 2, 3)
         left = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_left.values)));
       } else {
-        left = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+        left = std::move(filter_obj_left.expr);
       }
     }
 
@@ -190,8 +232,8 @@ RC LogicalPlanGenerator::create_plan(
     //                                       ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
     //                                       : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
 
-    if (filter_obj_right.is_attr) {
-      right = unique_ptr<Expression>(static_cast<Expression *>(new FieldExpr(filter_obj_right.field)));
+    if (filter_obj_right.is_expr) {
+      right = std::move(filter_obj_right.expr);
     } else {
       if (filter_obj_right.sub_select_stmt != nullptr) {
         // 创建普通select子查询的逻辑计划
@@ -205,12 +247,27 @@ RC LogicalPlanGenerator::create_plan(
           LOG_PANIC("failed to create sub query logical plan. rc=%s", strrc(rc));
           return rc;
         }
+        // //  special judge
+        // if (filter_stmt->filter_units().size() == 1 && filter_obj_left.sub_select_stmt->filter_stmt()->filter_units().size() == 1) {
+        //   if(filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->value_type() == AttrType::INTS 
+        //       && filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->value_type() == AttrType::INTS) {
+        //     if (filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->comp() == CompOp::EQUAL_TO) {
+        //       Value left_value;
+        //       Value right_value;
+        //       filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->left().expr->try_get_value(left_value);
+        //       filter_obj_left.sub_select_stmt->filter_stmt()->filter_units()[0]->right().expr->try_get_value(right_value);
+        //       if (left_value.get_int() != right_value.get_int()) {
+        //         sub_query_logical_oper = nullptr;
+        //       }
+        //     }
+        //   }
+        // }
         right = unique_ptr<Expression>(static_cast<Expression *>(new SubqueryExpr(attr_type, table_name, field_name, std::move(sub_query_logical_oper))));
       } else if (filter_obj_right.values != nullptr) {
         // 特殊子查询，IN (1, 2, 3)
         right = unique_ptr<Expression>(static_cast<Expression *>(new ValueListExpr(*filter_obj_right.values)));
       } else {
-        right = unique_ptr<Expression>(static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+        right = std::move(filter_obj_right.expr);
       }
     }
 
@@ -224,7 +281,7 @@ RC LogicalPlanGenerator::create_plan(
 
   // 如果有多个比较条件，需要套上一个ConjunctionExpr。miniob 中暂时只支持 AND 关系
   if (!cmp_exprs.empty()) {
-    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
+    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(conjunction_types[0], cmp_exprs)); // 暂时获取第一个（暂时不支持and和or混用）
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
   }
 

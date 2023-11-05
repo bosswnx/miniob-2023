@@ -30,7 +30,7 @@ See the Mulan PSL v2 for more details. */
 class AggregationLogicalOperator : public LogicalOperator 
 {
 public:
-  AggregationLogicalOperator(const std::vector<AggreType> &aggre_types);
+  AggregationLogicalOperator();
   virtual ~AggregationLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -46,9 +46,7 @@ public:
   {
     return expressions_;
   }
-  const std::vector<AggreType> &aggre_types() const { return aggre_types_; }
 
 private:
   //! 聚合类型
-  std::vector<AggreType> aggre_types_;
 };

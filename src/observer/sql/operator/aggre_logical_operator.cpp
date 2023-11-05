@@ -14,5 +14,5 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/operator/aggre_logical_operator.h"
 
-AggregationLogicalOperator::AggregationLogicalOperator(const std::vector<AggreType> &aggre_types) : aggre_types_(aggre_types)
+AggregationLogicalOperator::AggregationLogicalOperator() 
 {}

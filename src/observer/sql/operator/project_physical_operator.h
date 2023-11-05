@@ -30,7 +30,14 @@ public:
 
   void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions)
   {
-    
+    for (auto &expr : expressions)
+    {
+      tuple_.add_expr(std::move(expr));
+    }
+  }
+  void add_expression(std::unique_ptr<Expression> &&expr)
+  {
+    tuple_.add_expr(std::move(expr));
   }
   void add_projection(const Table *table, const FieldMeta *field);
 
@@ -40,7 +47,7 @@ public:
   }
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple *main_query_tuple = nullptr) override;
   RC close() override;
 
   int cell_num() const

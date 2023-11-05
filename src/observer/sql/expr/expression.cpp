@@ -13,30 +13,33 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/expression.h"
+#include "common/rc.h"
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "storage/index/index.h"
+#include "gtest/gtest.h"
 
 class LogicalOperator;
 class PhysicalOperator;
 class Trx;
 
+#include "sql/parser/parse_defs.h"
 
 using namespace std;
 
-RC FieldExpr::get_value(const Tuple &tuple, Value &value)
+RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
-RC ValueExpr::get_value(const Tuple &tuple, Value &value)
+RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   value = value_;
   return RC::SUCCESS;
 }
 
-RC ValueListExpr::get_value(const Tuple &tuple, Value &value)
+RC ValueListExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   if (index_ >= values_.size()) {
     index_ = 0;
@@ -75,7 +78,7 @@ RC CastExpr::cast(const Value &value, Value &cast_value) const
   return rc;
 }
 
-RC CastExpr::get_value(const Tuple &tuple, Value &cell)
+RC CastExpr::get_value(const Tuple &tuple, Value &cell, Trx *trx)
 {
   RC rc = child_->get_value(tuple, cell);
   if (rc != RC::SUCCESS) {
@@ -101,13 +104,18 @@ SubqueryExpr::SubqueryExpr(AttrType attr_type, const char *table_name, const cha
     : attr_type_(attr_type), table_name_(table_name), field_name_(field_name), logical_operator_(std::move(logical_operator))
 {}
 
-RC SubqueryExpr::get_value(const Tuple &tuple, Value &value)
-{
+RC SubqueryExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
+{ 
   RC rc = RC::SUCCESS;
+  if (logical_operator_ == nullptr && physical_operator_ == nullptr) {
+    return RC::RECORD_EOF;
+  }
   if (physical_operator_ == nullptr) {
     LOG_WARN("physical operator is null");
     return RC::INVALID_ARGUMENT;
   }
+
+  trx_ = trx;
 
   if (!is_open_) {
     rc = open_physical_operator();
@@ -118,7 +126,8 @@ RC SubqueryExpr::get_value(const Tuple &tuple, Value &value)
   }
 
   // 查询子查询的结果，写入value中
-  rc = physical_operator_->next();
+  Tuple *non_const_ptr = const_cast<Tuple*>(&tuple);
+  rc = physical_operator_->next(non_const_ptr);
   if (rc != RC::SUCCESS) {
     // maybe we reach the end of the result
     if (rc != RC::RECORD_EOF) {
@@ -156,11 +165,15 @@ RC SubqueryExpr::get_value(const Tuple &tuple, Value &value)
   //     return rc;
   //   }
   // }
-  if (another_tuple->cell_num() != 1) {
+  if (another_tuple->cell_num() > 1) {
     LOG_WARN("tuple cell count is not 1");
     return RC::INVALID_ARGUMENT;
   }
-  another_tuple->cell_at(0, value);
+  if (another_tuple->cell_num() == 0) {
+    value.set_null(true);
+  } else {
+    another_tuple->cell_at(0, value);
+  }
   return rc;
 }
 
@@ -221,7 +234,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   // 这里把 like 算作一种特殊的算符（comporator）
   if (comp_ == CompOp::LIKE) {
     if (left.attr_type() != AttrType::CHARS || right.attr_type() != AttrType::CHARS) {
-      LOG_PANIC("like operator only support string type now");
+      LOG_PANIC("like operator only support string type now");      
       return RC::INVALID_ARGUMENT;
     }
     result = left.like(left.data(), right.data());
@@ -232,6 +245,26 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       return RC::INVALID_ARGUMENT;
     }
     result = !left.like(left.data(), right.data());
+    return rc;
+  }
+  if(comp_ == CompOp::IS_NOT_ ) {
+    if(left.get_null_or_() == false) {
+      result = true;
+    } else {
+      result = false;
+    }
+    return rc;
+  }
+  if(comp_ == CompOp::IS_ ) {
+    if(left.get_null_or_() == true || (right.get_null_or_() == true && left.get_null_or_() == right.get_null_or_())) {
+      result = true;
+    } else {
+      result = false;
+    }
+    return rc;
+  }
+  if(left.get_null_or_() == true || right.get_null_or_() == true) {
+    result = false;
     return rc;
   }
   int cmp_result = left.compare(right);
@@ -286,18 +319,48 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
-RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
+RC ComparisonExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   Value left_value;
   Value right_value;
   RC rc;
 
   if (left_->type() == ExprType::SUBQUERY && right_->type() == ExprType::SUBQUERY) {
-    LOG_WARN("not support subquery in both side of comparison");
-    return RC::INVALID_ARGUMENT;
-  }
-  
-  if (left_->type() == ExprType::SUBQUERY || right_->type() == ExprType::SUBQUERY) {
+    // 双边的值都只能有一个
+    SubqueryExpr *left_subquery_expr;
+    SubqueryExpr *right_subquery_expr;
+    Value* left_sub_query_value;
+    Value* right_sub_query_value;
+    left_subquery_expr = static_cast<SubqueryExpr *>(left_.get());
+    right_subquery_expr = static_cast<SubqueryExpr *>(right_.get());
+    rc = left_->get_value(tuple, left_value); 
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    Value test;
+    rc = left_->get_value(tuple, test);
+    if (rc != RC::RECORD_EOF) {
+      LOG_WARN("we only support 1 rows for subquery result rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, test);
+    if (rc != RC::RECORD_EOF) {
+      LOG_WARN("we only support 1 rows for subquery result rc=%s", strrc(rc));
+      return rc;
+    }
+    bool bool_value = false;
+    rc = compare_value(left_value, right_value, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
+    // WARN: 这里有一个非常大的问题: 在mysql中，是支持一行多个cells比较的，而这里如果有多个cells则会直接报错
+  } else if (left_->type() == ExprType::SUBQUERY || right_->type() == ExprType::SUBQUERY) {
     SubqueryExpr *subquery_expr;
     Value* sub_query_value;
     if (left_->type() == ExprType::SUBQUERY) {
@@ -316,8 +379,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 
     bool bool_value = false;
     // 循环next子查询的算子，直到找到一个满足条件的值
-    while((rc = subquery_expr->get_value(tuple, *sub_query_value)) == RC::SUCCESS) {
-      if (sub_query_value->attr_type() == UNDEFINED) {
+    while((rc = subquery_expr->get_value(tuple, *sub_query_value, trx)) == RC::SUCCESS) {
+      if (sub_query_value->attr_type() == UNDEFINED && !sub_query_value->get_null_or_()) {
         rc = RC::RECORD_EOF; // maybe wrong
         break;
       }
@@ -329,8 +392,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
       } else if (comp_ == CompOp::NOT_EXISTS_) {
         value.set_boolean(false);
         break;
-      } else if (comp_ == CompOp::EQUAL_TO || comp_ == CompOp::NOT_EQUAL) {
-        // 当comp_为=或者<>时，子查询的结果只能是一个值
+      } else if (comp_ != CompOp::IN_ && comp_ != CompOp::NOT_IN && comp_ != CompOp::EXISTS_ && comp_ != CompOp::NOT_EXISTS_) {
+        // 当comp_不是IN、NOT_IN、EXISTS、NOT_EXISTS时，子查询的结果只能是一个值
         if (has_sub_queried_) {
           has_sub_queried_ = false; // 良好的习惯，重置
           rc = RC::INVALID_ARGUMENT;
@@ -342,9 +405,19 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 
       rc = compare_value(left_value, right_value, bool_value);
 
-      // 当CompOp不是NOT_IN时，只要找到一个满足条件的值就可以返回
+      // 当CompOp不是NOT_IN时，只要找到一个满足条件的值就可以返回 (这句话是错误的)
       // 当CompOp是NOT_IN时，必须得遍历完所有的值才能知道
-      if (rc == RC::SUCCESS && comp_ != CompOp::NOT_IN && bool_value ) {
+      // if (rc == RC::SUCCESS && comp_ != CompOp::NOT_IN && bool_value ) {
+      //   value.set_boolean(bool_value);
+      //   break;
+      // } else if (rc == RC::SUCCESS && comp_ == CompOp::NOT_IN && !bool_value) {
+      //   // 当CompOp==NOT_IN，且左右value相等（因为是NOTIN，所以bool_value前要加!），直接结束循环
+      //   value.set_boolean(bool_value);
+      //   break;
+      // }
+      // 当CompOp是IN时，只要找到一个满足条件的值就可以返回
+      // 当CompOp是NOT_IN时，必须得遍历完所有的值才能知道
+      if (rc == RC::SUCCESS && comp_ == CompOp::IN_ && bool_value ) {
         value.set_boolean(bool_value);
         break;
       } else if (rc == RC::SUCCESS && comp_ == CompOp::NOT_IN && !bool_value) {
@@ -372,12 +445,18 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
     if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     }
+
+    value.set_boolean(bool_value);
+
     // 关闭算子
     // 可优化 static_cast 潜在的开销
-    rc = subquery_expr->close_physical_operator();
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+    if (subquery_expr->physical_operator() != nullptr) {
+      rc = subquery_expr->close_physical_operator();
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to close physical operator. rc=%s", strrc(rc));
+      }
     }
+
   } else if (left_->type() == ExprType::VALUES || right_->type() == ExprType::VALUES) {
     ValueListExpr *value_list_expr;
     Value* value_list_value;
@@ -486,7 +565,7 @@ ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &chil
     : conjunction_type_(type), children_(std::move(children))
 {}
 
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value)
+RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -496,7 +575,7 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value)
 
   Value tmp_value;
   for (const unique_ptr<Expression> &expr : children_) {
-    rc = expr->get_value(tuple, tmp_value);
+    rc = expr->get_value(tuple, tmp_value, trx);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value by child expression. rc=%s", strrc(rc));
       return rc;
@@ -543,6 +622,11 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
 
   const AttrType target_type = value_type();
 
+  if (left_value.get_null_or_() || right_value.get_null_or_()) {
+    value.set_null(true);
+    return rc;
+  }
+
   switch (arithmetic_type_) {
     case Type::ADD: {
       if (target_type == AttrType::INTS) {
@@ -571,15 +655,15 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     case Type::DIV: {
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
-          // NOTE: 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
-          value.set_int(numeric_limits<int>::max());
+          // 除以0，设置为NULL
+          value.set_null(true);
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
       } else {
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
-          // NOTE: 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
-          value.set_float(numeric_limits<float>::max());
+          // 除以0，设置为NULL
+          value.set_null(true);
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }
@@ -602,22 +686,26 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   return rc;
 }
 
-RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value)
+RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
   RC rc = RC::SUCCESS;
 
   Value left_value;
   Value right_value;
 
-  rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
+  if (left_ != nullptr) {
+    rc = left_->get_value(tuple, left_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  if (right_ != nullptr) {
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
   }
   return calc_value(left_value, right_value, value);
 }
@@ -644,4 +732,194 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+AttrType AggreExpr::value_type() const {
+  switch (type_) {
+    case AggreType::CNT:
+    case AggreType::CNTALL: {
+      return INTS;
+    }
+    case AggreType::MIN:
+    case AggreType::MAX:
+    case AggreType::SUM: {
+      return child_->value_type();
+    }
+    case AggreType::AVG: {
+      return FLOATS;
+    }
+    default: {
+      LOG_WARN("unsupported aggre type. %d", type_);
+      return UNDEFINED;
+    }
+  }
+}
+
+RC AggreExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
+  RC rc = RC::SUCCESS;
+  if (type_ == AggreType::CNTALL) {
+    cnt_++;
+    value.set_int(cnt_);
+    value_.set_int(cnt_);
+    return RC::SUCCESS;
+  }
+  rc = child_->get_value(tuple, value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (value.get_null_or_()) {
+    value = value_;
+    if (cnt_ == 0) {
+      LOG_WARN("aggregate function has no value");
+      value.set_null(true);
+      return RC::SUCCESS;
+    }
+    if (type_ == AggreType::AVG) {
+      float tmp = value.get_float() / (float)cnt_;
+      value.set_float(tmp);
+    }
+    return RC::SUCCESS;
+  }
+  cnt_++;
+  if (cnt_ == 1) {
+    switch (type_) {
+      case AggreType::CNT:
+      case AggreType::CNTALL: {
+        value_.set_int(1);
+      } break;
+      case AggreType::MAX:
+      case AggreType::MIN: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float());
+          } break;
+          case DATES: {
+            value_.set_date(value.get_date());
+          } break;
+          case CHARS: {
+            value_.set_string(value.get_string());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::AVG: {
+        value_.set_float(value.get_float());
+      } break;
+      case AggreType::SUM: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      default: {
+        LOG_WARN("unsupported aggre type. %d", type_);
+        return RC::INTERNAL;
+      } break;
+    }
+  } else {
+    switch (type_) {
+      case AggreType::CNT:
+      case AggreType::CNTALL: {
+        value_.set_int(cnt_);
+      } break;
+      case AggreType::MAX: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(std::max(value.get_int(), value_.get_int()));
+          } break;
+          case FLOATS: {
+            value_.set_float(std::max(value.get_float(), value_.get_float()));
+          } break;
+          case DATES: {
+            value_.set_date(date(std::max(value.get_date().get_date_value(), value_.get_date().get_date_value())));
+          } break;
+          case CHARS: {
+            value_.set_string(std::max(value.get_string(), value_.get_string()));
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::MIN: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(std::min(value.get_int(), value_.get_int()));
+          } break;
+          case FLOATS: {
+            value_.set_float(std::min(value.get_float(), value_.get_float()));
+          } break;
+          case DATES: {
+            value_.set_date(date(std::min(value.get_date().get_date_value(), value_.get_date().get_date_value())));
+          } break;
+          case CHARS: {
+            value_.set_string(std::min(value.get_string(), value_.get_string()));
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      case AggreType::AVG: {
+        value_.set_float(value.get_float() + value_.get_float());
+      } break;
+      case AggreType::SUM: {
+        switch (value.attr_type()) {
+          case INTS: {
+            value_.set_int(value.get_int() + value_.get_int());
+          } break;
+          case FLOATS: {
+            value_.set_float(value.get_float() + value_.get_float());
+          } break;
+          default: {
+            LOG_WARN("unsupported attr type. %d", value.attr_type());
+            return RC::INTERNAL;
+          } break;
+        }
+      } break;
+      default: {
+        LOG_WARN("unsupported aggre type. %d", type_);
+        return RC::INTERNAL;
+      } break;
+    }
+  }
+  value = value_;
+  if (type_ == AggreType::AVG) {
+    float tmp = value.get_float() / (float)cnt_;
+    value.set_float(tmp);
+  }
+  return RC::SUCCESS;
+}
+
+RC AggreExpr::try_get_value(Value &value) const {
+  value = value_;
+  if (cnt_ == 0) {
+    if (type_ == AggreType::CNT || type_ == AggreType::CNTALL) {
+      value.set_int(0);
+    } else {
+      value.set_null(true);
+    }
+    return RC::SUCCESS;
+  }
+  if (type_ == AggreType::AVG) {
+    value.set_float(value.get_float() / cnt_);
+  }
+  return RC::SUCCESS;
 }

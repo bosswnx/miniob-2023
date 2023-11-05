@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <string>
 
+#include "sql/parser/parse_defs.h"
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
 #include "common/log/log.h"
@@ -49,6 +50,8 @@ enum class ExprType
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
   SUBQUERY,     ///< 子查询
+  RELATTR,      ///< 字段列表
+  AGGREGATION,  ///< 聚合函数
 };
 
 /**
@@ -71,7 +74,7 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value) = 0;
+  virtual RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) = 0;
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
@@ -117,7 +120,7 @@ public:
   ExprType type() const override { return ExprType::SUBQUERY; }
   AttrType value_type() const override { return attr_type_; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
 
   std::unique_ptr<LogicalOperator> &logical_operator() { return logical_operator_; }
 
@@ -169,10 +172,44 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
 
 private:
   Field field_;
+};
+
+/**
+ * @brief 字段列表表达式
+ * @ingroup Expression
+ */
+class RelAttrExpr : public Expression
+{
+public:
+  RelAttrExpr() = default;
+  RelAttrExpr(const char *table_name, const char *field_name) : table_name_(table_name), field_name_(field_name) {}
+  RelAttrExpr(const std::string &table_name, const std::string &field_name) : table_name_(table_name), field_name_(field_name) {}
+
+  virtual ~RelAttrExpr() = default;
+
+  ExprType type() const override { return ExprType::RELATTR; }
+  AttrType value_type() const override { return UNDEFINED; }
+
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override { return RC::UNIMPLENMENT; }
+  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
+
+  const string &table_name() const { return table_name_; }
+  const string &field_name() const { return field_name_; }
+
+  void set_table_name(const string &table_name) { table_name_ = table_name; }
+  void set_field_name(const string &field_name) { field_name_ = field_name; }
+
+  void set_is_main_relation(bool is_main_relation) { is_main_relation_ = is_main_relation; }
+  const bool is_main_relation() const { return is_main_relation_; }
+
+private:
+  bool is_main_relation_ = false;
+  std::string table_name_;
+  std::string field_name_;
 };
 
 /**
@@ -188,7 +225,7 @@ public:
 
   virtual ~ValueExpr() = default;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
   RC try_get_value(Value &value) const override { value = value_; return RC::SUCCESS; }
 
   ExprType type() const override { return ExprType::VALUE; }
@@ -216,7 +253,7 @@ public:
 
   virtual ~ValueListExpr() = default;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
   RC try_get_value(Value &value) const override { value = values_[0]; return RC::SUCCESS; }
 
   ExprType type() const override { return ExprType::VALUES; }
@@ -245,7 +282,7 @@ public:
   {
     return ExprType::CAST;
   }
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
 
   RC try_get_value(Value &value) const override;
 
@@ -273,7 +310,7 @@ public:
 
   ExprType type() const override { return ExprType::COMPARISON; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -325,7 +362,7 @@ public:
 
   AttrType value_type() const override { return BOOLEANS; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
 
   Type conjunction_type() const { return conjunction_type_; }
 
@@ -360,7 +397,7 @@ public:
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
   RC try_get_value(Value &value) const override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
@@ -376,3 +413,34 @@ private:
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
 };
+
+/**
+ * @brief 聚合函数表达式
+ * @ingroup Expression
+ */
+class AggreExpr : public Expression 
+{
+public:
+  AggreExpr(AggreType type, Expression *child): type_(type), child_(child) {}
+  AggreExpr(AggreType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) {}
+  virtual ~AggreExpr() = default;
+
+  ExprType type() const override { return ExprType::AGGREGATION; }
+
+  AttrType value_type() const override;
+
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
+  RC try_get_value(Value &value) const override;
+
+  AggreType agg_type() const { return type_; }
+  void set_agg_type(AggreType type) { type_ = type; }
+
+  std::unique_ptr<Expression> &child() { return child_; }
+
+private:
+  AggreType type_;
+  Value value_;
+  int cnt_ = 0;
+  std::unique_ptr<Expression> child_;
+};
+  

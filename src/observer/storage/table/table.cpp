@@ -312,16 +312,22 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    if (field->type() != value.attr_type()) {
+    if (!(field->is_null() && value.get_null_or_()) && field->type() != value.attr_type()) {
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     }
   }
 
+  int record_size = table_meta_.record_size();  // 已包含记录null的bitmap的长度。[null_bitmap | record_data]
+
   // 复制所有字段的值
-  int record_size = table_meta_.record_size();
+
   char *record_data = (char *)malloc(record_size);
+  for(int i = 0; i < value_num; i++){
+    char p = char(values[i].get_null_or_());
+    memcpy(record_data + i, &p, 1); 
+  }
 
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
@@ -333,14 +339,6 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
         copy_len = data_len + 1;
       }
     }
-    // // 输出 value.data() 到 test
-    // auto *test = (char *)malloc(copy_len);
-    // memcpy(test, value.data(), copy_len);
-    // // test 转成 int32_t
-    // int32_t int_value = 0;
-    // memcpy(&int_value, test, copy_len);
-    // // int32_t 转成 date
-    // date date_value = date(int_value);
 
     memcpy(record_data + field->offset(), value.data(), copy_len);
   }
@@ -504,7 +502,6 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
   old_values.resize(values.size());
   rc = record_handler_->update_record(&old_record.rid(), field_metas, values, &old_values);
   if (rc != RC::SUCCESS) {
-    LOG_ERROR("Failed to update record. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
     return rc;
   }
 

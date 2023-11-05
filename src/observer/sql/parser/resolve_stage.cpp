@@ -24,6 +24,9 @@ See the Mulan PSL v2 for more details. */
 #include "event/sql_event.h"
 #include "event/session_event.h"
 #include "session/session.h"
+#include "sql/parser/parse_defs.h"
+#include "sql/stmt/select_stmt.h"
+#include "sql/stmt/create_table_stmt.h"
 #include "sql/stmt/stmt.h"
 
 using namespace common;
@@ -44,12 +47,43 @@ RC ResolveStage::handle_request(SQLStageEvent *sql_event)
   }
 
   ParsedSqlNode *sql_node = sql_event->sql_node().get();
+
+
+  SelectStmt *select_stmt = nullptr;
+  Stmt *stmt_ = nullptr;
+  if (sql_node->flag == SCF_CREATE_TABLE) {
+    if (sql_node->create_table.sub_select != nullptr) {
+      // create table select
+      rc = Stmt::create_stmt(db, *sql_node->create_table.sub_select,
+                                   stmt_);
+      if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
+        LOG_WARN("failed to create stmt. rc=%d:%s", rc, strrc(rc));
+        sql_result->set_return_code(rc);
+        return rc;
+      }
+      // cast to SelectStmt
+      select_stmt = static_cast<SelectStmt *>(stmt_);
+    }
+  }
+
   Stmt *stmt = nullptr;
   rc = Stmt::create_stmt(db, *sql_node, stmt);
   if (rc != RC::SUCCESS && rc != RC::UNIMPLENMENT) {
     LOG_WARN("failed to create stmt. rc=%d:%s", rc, strrc(rc));
     sql_result->set_return_code(rc);
     return rc;
+  }
+
+  // cast to CreateTableStmt
+  if (sql_node->flag == SCF_CREATE_TABLE) {
+    if (sql_node->create_table.sub_select != nullptr) {
+      CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
+      create_table_stmt->set_select_stmt(select_stmt);
+      // 将select_stmt的query_exprs赋值给create_table_stmt的query_names
+      // create_table_stmt->set_query_names(select_stmt->query_names());
+      // create_table_stmt->set_query_exprs(select_stmt->query_exprs());
+      create_table_stmt->set_query_fields(select_stmt->true_query_fields());
+    }
   }
 
   sql_event->set_stmt(stmt);

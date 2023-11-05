@@ -19,6 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include "common/log/log.h"
+#include "sql/expr/expression.h"
+#include <vector>
 
 class Db;
 
@@ -89,7 +91,7 @@ public:
   static RC create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt);
 
 
-  static RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select)
+  static RC check_sub_select_legal(Db *db, ParsedSqlNode *sub_select, std::vector<RelationSqlNode> main_query_relations)
   {
     // 当左子查询的属性不止一个时，报错（注意这里没有判断*，需要到后面的步骤判断）
     if (sub_select->selection.attributes.size() != 1) {
@@ -97,10 +99,14 @@ public:
       return RC::INVALID_ARGUMENT;
     }
     // 如果是*，需要先获得table，然后看其中的fields是不是1，如果不是，报错
-    if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].attribute_name == "*") {
+    RelAttrExpr *attr = nullptr;
+    if (sub_select->selection.attributes.size() > 0 && sub_select->selection.attributes[0].expr->type() == ExprType::RELATTR) {
+      attr = static_cast<RelAttrExpr *>(sub_select->selection.attributes[0].expr);
+    }
+    if (attr != nullptr && attr->field_name() == "*") {
       int fields_num = 0;
       for (size_t j = 0; j < sub_select->selection.relations.size(); ++j) {
-        const char *table_name = sub_select->selection.relations[j].c_str();
+        const char *table_name = sub_select->selection.relations[j].name.c_str();
         if (nullptr == table_name) {
           LOG_WARN("invalid argument. relation name is null. index=%d", j);
           return RC::INVALID_ARGUMENT;
