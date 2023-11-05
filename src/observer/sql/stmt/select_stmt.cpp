@@ -127,6 +127,19 @@ RC SelectStmt::make_field_expr(Db *db, Table *default_table, std::unordered_map<
     }
     return rc;
   }
+  if (expr->type() == ExprType::FUNCTION) {
+    FuncExpr *func_expr = static_cast<FuncExpr *>(expr.get());
+    if (func_expr->child() == nullptr) {
+      LOG_WARN("invalid function expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    rc = SelectStmt::make_field_expr(db, default_table, tables, func_expr->child(), query_fields);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to make field expr");
+      return rc;
+    }
+    return rc;
+  }
   if (expr->type() != ExprType::RELATTR) {
     LOG_WARN("invalid expr type: %d", expr->type());
     return RC::INVALID_ARGUMENT;
@@ -191,6 +204,19 @@ RC SelectStmt::check_have_aggre(const std::unique_ptr<Expression> &expr, bool &i
       return RC::INVALID_ARGUMENT;
     }
     is_attr = true;
+    return rc;
+  }
+  if (expr->type() == ExprType::FUNCTION) {
+    FuncExpr *func_expr = static_cast<FuncExpr *>(expr.get());
+    if (func_expr->child() == nullptr) {
+      LOG_WARN("invalid function expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    rc = SelectStmt::check_have_aggre(func_expr->child(), is_aggre, is_attr);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to check have aggre");
+      return rc;
+    }
     return rc;
   }
   // 只剩下聚合函数了
@@ -313,6 +339,19 @@ RC SelectStmt::convert_alias_to_name(Expression *expr, std::shared_ptr<std::unor
     }
     return rc;
   } 
+  if (expr->type() == ExprType::FUNCTION) {
+    FuncExpr *func_expr = static_cast<FuncExpr *>(expr);
+    if (func_expr->child() == nullptr) {
+      LOG_WARN("invalid function expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    RC rc = SelectStmt::convert_alias_to_name(func_expr->child().get(), alias2name);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to check parent relation");
+      return rc;
+    }
+    return rc;
+  }
   // 只剩下 ATTR 了
   if (expr->type() != ExprType::RELATTR) {
     LOG_WARN("invalid expr type: %d", expr->type());

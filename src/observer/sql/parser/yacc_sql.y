@@ -118,6 +118,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NLK // NOT_LIKE
         IS_NOT
         IS
+        LENGTH
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -817,6 +818,10 @@ expression:
     }
     | aggre_type LBRACE RBRACE {
       $$ = new AggreExpr($1, nullptr);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | LENGTH LBRACE expression RBRACE {
+      $$ = new FuncExpr(FuncType::LENGTH, $3);
       $$->set_name(token_name(sql_string, &@$));
     }
     | expression '+' expression {

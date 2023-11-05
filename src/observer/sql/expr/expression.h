@@ -52,6 +52,12 @@ enum class ExprType
   SUBQUERY,     ///< 子查询
   RELATTR,      ///< 字段列表
   AGGREGATION,  ///< 聚合函数
+  FUNCTION,     ///< 函数
+};
+
+enum class FuncType {
+  NONE = 0,
+  LENGTH,
 };
 
 /**
@@ -444,3 +450,29 @@ private:
   std::unique_ptr<Expression> child_;
 };
   
+/**
+ * @brief 函数表达式
+ * @ingroup Expression
+ */
+class FuncExpr : public Expression 
+{
+public:
+  FuncExpr(FuncType type, std::unique_ptr<Expression> child): type_(type), child_(std::move(child)) {};
+  FuncExpr(FuncType type, Expression *child): type_(type), child_(child) {};
+  virtual ~FuncExpr() = default;
+
+  ExprType type() const override { return ExprType::FUNCTION; }
+
+  AttrType value_type() const override;
+
+  RC get_value(const Tuple &tuple, Value &value, Trx *trx = nullptr) override;
+  RC try_get_value(Value &value) const override;
+
+  FuncType func_type() const { return type_; }
+
+  std::unique_ptr<Expression> &child() { return child_; }
+
+private:
+  FuncType type_;
+  std::unique_ptr<Expression> child_;
+};

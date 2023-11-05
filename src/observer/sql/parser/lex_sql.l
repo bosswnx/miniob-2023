@@ -126,6 +126,8 @@ INFILE                                  RETURN_TOKEN(INFILE);
 NULL                                    RETURN_TOKEN(NULL_T);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 
+LENGTH                                  RETURN_TOKEN(LENGTH);
+
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
 AS                                      RETURN_TOKEN(AS);

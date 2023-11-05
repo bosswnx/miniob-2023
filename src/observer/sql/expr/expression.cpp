@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
+#include "sql/parser/value.h"
 #include "storage/index/index.h"
 #include "gtest/gtest.h"
 
@@ -920,6 +921,66 @@ RC AggreExpr::try_get_value(Value &value) const {
   }
   if (type_ == AggreType::AVG) {
     value.set_float(value.get_float() / cnt_);
+  }
+  return RC::SUCCESS;
+}
+
+AttrType FuncExpr::value_type() const {
+  switch (type_) {
+    case FuncType::LENGTH: {
+      return INTS;
+    }
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return UNDEFINED;
+    }
+  }
+}
+
+RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
+  RC rc = RC::SUCCESS;
+  Value child_value;
+  rc = child_->get_value(tuple, child_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (child_value.attr_type() != CHARS) {
+    LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+    return RC::INVALID_ARGUMENT;
+  }
+  switch (type_) {
+    case FuncType::LENGTH: {
+      value.set_int(child_value.get_string().length());
+    } break;
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return RC::INTERNAL;
+    } break;
+  }
+  return RC::SUCCESS;
+}
+
+RC FuncExpr::try_get_value(Value &value) const {
+  RC rc = RC::SUCCESS;
+  Value child_value;
+  rc = child_->try_get_value(child_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (child_value.attr_type() != CHARS) {
+    LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+    return RC::INVALID_ARGUMENT;
+  }
+  switch (type_) {
+    case FuncType::LENGTH: {
+      value.set_int(child_value.get_string().length());
+    } break;
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return RC::INTERNAL;
+    } break;
   }
   return RC::SUCCESS;
 }
