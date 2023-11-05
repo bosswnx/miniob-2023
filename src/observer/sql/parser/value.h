@@ -50,6 +50,28 @@ class date
   }
   const int32_t *get_date_value_addr() const { return &datevalue; }
   const int32_t get_date_value() const { return datevalue; }
+  const int get_year() const { return datevalue / 10000; }
+  const int get_month() const { return (datevalue % 10000) / 100; }
+  const int get_day() const { return datevalue % 100; }
+  const std::string get_month_english() const
+  {
+    std::string month_english[12] = {"January","February","March","April","May","June","July","August","September","October","November","December"};
+    return month_english[get_month() - 1];
+  }
+  const std::string get_day_english() const
+  {
+    std::string result = std::to_string(get_day());
+    if (get_day() % 10 == 1) {
+      result += "st";
+    } else if (get_day() % 10 == 2) {
+      result += "nd";
+    } else if (get_day() % 10 == 3) {
+      result += "rd";
+    } else {
+      result += "th";
+    }
+    return result;
+  }
   void set_date_value(int32_t val){ datevalue = val; }
   /**
    * @brief 将字符串转换为date

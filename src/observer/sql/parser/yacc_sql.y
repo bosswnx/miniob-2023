@@ -118,6 +118,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NLK // NOT_LIKE
         IS_NOT
         IS
+        LENGTH
+        ROUND
+        DATE_FORMAT
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -688,7 +691,14 @@ order_by_list:
     ;
 
 select_stmt:        /*  select 语句的语法解析树。这里为什么 rel_list 前还要加一个 ID 呢？因为要保证至少有一个表。*/
-    SELECT select_attr FROM relation rel_list join_list where order_by_list
+    SELECT select_attr {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+    }
+    | SELECT select_attr FROM relation rel_list join_list where order_by_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -792,6 +802,10 @@ expression:
       $$ = new RelAttrExpr($1, $3);
       $$->set_name(token_name(sql_string, &@$));
     }
+    | ID DOT '*' {
+      $$ = new RelAttrExpr($1, "*");
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | '*' {
       $$ = new RelAttrExpr("", "*");
       $$->set_name(token_name(sql_string, &@$));
@@ -814,6 +828,28 @@ expression:
     | aggre_type LBRACE RBRACE {
       $$ = new AggreExpr($1, nullptr);
       $$->set_name(token_name(sql_string, &@$));
+    }
+    | LENGTH LBRACE expression RBRACE {
+      $$ = new FuncExpr(FuncType::LENGTH, $3);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | ROUND LBRACE expression RBRACE {
+      FuncExpr *tmp = new FuncExpr(FuncType::ROUND, $3);
+      tmp->set_name(token_name(sql_string, &@$));
+      tmp->set_param(new ValueExpr(Value(0)));
+      $$ = tmp;
+    }
+    | ROUND LBRACE expression COMMA expression RBRACE {
+      FuncExpr *tmp = new FuncExpr(FuncType::ROUND, $3);
+      tmp->set_name(token_name(sql_string, &@$));
+      tmp->set_param($5);
+      $$ = tmp;
+    }
+    | DATE_FORMAT LBRACE expression COMMA expression RBRACE {
+      FuncExpr *tmp = new FuncExpr(FuncType::DATE_FORMAT, $3);
+      tmp->set_name(token_name(sql_string, &@$));
+      tmp->set_param($5);
+      $$ = tmp;
     }
     | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
@@ -1160,6 +1196,7 @@ condition:
       //$$->right_value = nullptr;
       //$$->right_sub_select = std::unique_ptr<ParsedSqlNode>($3);
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
       //  char            sub_select;      // 0: not sub select, 1: left sub select, 2: right sub select
       $$->sub_select = 2;
       $$->comp = $2;
@@ -1174,6 +1211,7 @@ condition:
       $$->comp = IN_;
       $$->sub_select = 2;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      $$->right_is_expr = false;
       if ($5 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$5);
         delete $5;
@@ -1190,6 +1228,7 @@ condition:
       $$->comp = IN_;
       $$->sub_select = 2;
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
     }
     | expression NI LBRACE value value_list RBRACE {
       // IN/NOT IN
@@ -1201,6 +1240,7 @@ condition:
       $$->comp = NOT_IN;
       $$->sub_select = 2;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
+      $$->right_is_expr = false;
       if ($5 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$5);
         delete $5;
@@ -1217,6 +1257,7 @@ condition:
       $$->comp = NOT_IN;
       $$->sub_select = 2;
       $$->right_sub_select = $3;
+      $$->right_is_expr = false;
     }
     | sub_select_stmt comp_op expression
     {
@@ -1225,6 +1266,7 @@ condition:
       //$$->left_value = nullptr;
       //$$->left_sub_select = std::unique_ptr<ParsedSqlNode>($1);
       $$->left_sub_select = $1;
+      $$->left_is_expr = false;
       // $$->right_is_attr = 0;
       $$->right_expr = $3;
       $$->right_is_expr = true;
@@ -1253,6 +1295,8 @@ condition:
       // $$->right_is_attr = 0;
       $$->comp = EXISTS_;
       $$->right_sub_select = $2;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->sub_select = 2;
     }
     | NOT_EXISTS sub_select_stmt
@@ -1271,6 +1315,8 @@ condition:
       // $$->left_is_attr = 0;
       // $$->right_is_attr = 0;
       $$->comp = EXISTS_;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
       if ($4 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$4);
@@ -1287,6 +1333,8 @@ condition:
       // $$->left_is_attr = 0;
       // $$->right_is_attr = 0;
       $$->comp = NOT_EXISTS_;
+      $$->left_is_expr = false;
+      $$->right_is_expr = false;
       $$->right_sub_select = new ParsedSqlNode(SCF_SOME_VALUES);
       if ($4 != nullptr) {
         $$->right_sub_select->some_values.values.swap(*$4);

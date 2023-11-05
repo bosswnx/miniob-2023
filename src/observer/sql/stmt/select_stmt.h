@@ -80,13 +80,18 @@ public:
     const RelAttrExpr *attr, Table *&table, const FieldMeta *&field);
 
   static RC make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields);
+    std::unique_ptr<Expression> &expr, std::vector<Field> &query_fields, std::shared_ptr<std::unordered_map<string,string>> alias2name);
 
   static RC check_have_aggre(const std::unique_ptr<Expression> &expr, bool &is_aggre, bool &is_attr);
 
   static RC check_parent_relation(Expression *expr, 
       std::shared_ptr<std::unordered_map<string, string>> parent_alias2name, 
       const std::vector<string> &main_relation_names, bool &is_parent_relation);
+
+  static RC convert_alias_to_name(Expression *expr, 
+      std::shared_ptr<std::unordered_map<string, string>> alias2name);
+
+  static RC check_have_relattr(Expression *expr, bool &have_relattr);
 
   // get query field by expr。
   // 不维护偏移量和index

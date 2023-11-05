@@ -41,6 +41,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/join_physical_operator.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/calc_physical_operator.h"
+#include "sql/operator/no_table_select_logical_operator.h"
+#include "sql/operator/no_table_select_physical_operator.h"
 #include "sql/expr/expression.h"
 #include "common/log/log.h"
 #include "sql/parser/parse_defs.h"
@@ -96,6 +98,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::SORT: {
       return create_plan(static_cast<SortLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::NO_TABLE_SELECT: {
+      return create_plan(static_cast<NoTableSelectLogicalOperator &>(logical_operator), oper);
     } break;
 
     default: {
@@ -450,5 +456,17 @@ RC PhysicalPlanGenerator::create_plan(SortLogicalOperator &sort_oper, std::uniqu
   unique_ptr<PhysicalOperator> sort_phy_oper(new SortPhysicalOperator(order_by_fields, sort_oper.query_fields(), sort_oper.tables_all_fields()));
   sort_phy_oper->add_child(std::move(child_phy_oper));
   oper = std::move(sort_phy_oper);
+  return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(NoTableSelectLogicalOperator &no_table_select_oper, std::unique_ptr<PhysicalOperator> &oper) {
+  RC rc = RC::SUCCESS;
+  vector<unique_ptr<LogicalOperator>> &child_opers = no_table_select_oper.children();
+  if (child_opers.size() != 0) {
+    LOG_WARN("NoTableSelectLogicalOperator operator should have 0 child, but have %d", child_opers.size());
+    return RC::INTERNAL;
+  }
+  unique_ptr<PhysicalOperator> no_table_select_phy_oper(new NoTableSelectPhysicalOperator());
+  oper = std::move(no_table_select_phy_oper);
   return rc;
 }

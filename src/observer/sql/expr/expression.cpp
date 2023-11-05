@@ -17,8 +17,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
+#include "sql/parser/value.h"
 #include "storage/index/index.h"
 #include "gtest/gtest.h"
+#include <cmath>
 
 class LogicalOperator;
 class PhysicalOperator;
@@ -920,6 +922,157 @@ RC AggreExpr::try_get_value(Value &value) const {
   }
   if (type_ == AggreType::AVG) {
     value.set_float(value.get_float() / cnt_);
+  }
+  return RC::SUCCESS;
+}
+
+AttrType FuncExpr::value_type() const {
+  switch (type_) {
+    case FuncType::LENGTH: {
+      return INTS;
+    }
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return UNDEFINED;
+    }
+  }
+}
+
+RC FuncExpr::get_value(const Tuple &tuple, Value &value, Trx *trx) {
+  RC rc = RC::SUCCESS;
+  Value child_value;
+  rc = child_->get_value(tuple, child_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  switch (type_) {
+    case FuncType::LENGTH: {
+      if (child_value.attr_type() != CHARS) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      value.set_int(child_value.get_string().length());
+    } break;
+    case FuncType::ROUND: {
+      Value round_digits;
+      if (child_value.attr_type() != INTS && child_value.attr_type() != FLOATS) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      rc = param_->try_get_value(round_digits);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of round digits expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      if (round_digits.attr_type() != INTS) {
+        LOG_WARN("unsupported attr type. %d", round_digits.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      int rd = round_digits.get_int();
+      if (rd >= 0) {
+        float num = child_value.get_float();
+        float tmp = num * pow(10, rd);
+        int tmp_int = (int)tmp;
+        float tmp_float = (float)tmp_int;
+        if (tmp - tmp_float >= 0.5) {
+          tmp_int++;
+        }
+        tmp = (float)tmp_int;
+        tmp /= pow(10, rd);
+        value.set_float(tmp);
+      } else {
+        float num = child_value.get_float();
+        float tmp = num / pow(10, -rd);
+        int tmp_int = (int)tmp;
+        float tmp_float = (float)tmp_int;
+        if (tmp - tmp_float >= 0.5) {
+          tmp_int++;
+        }
+        tmp = (float)tmp_int;
+        tmp *= pow(10, -rd);
+        value.set_float(tmp);
+      }
+    } break;
+    case FuncType::DATE_FORMAT: {
+      Value format;
+      if (child_value.attr_type() != DATES) {
+        LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      rc = param_->try_get_value(format);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to get value of format expression. rc=%s", strrc(rc));
+        return rc;
+      }
+      if (format.attr_type() != CHARS) {
+        LOG_WARN("unsupported attr type. %d", format.attr_type());
+        return RC::INVALID_ARGUMENT;
+      }
+      string fmt = format.get_string();
+      date d = child_value.get_date();
+      int idx = fmt.find("%Y");  // 四位数年份
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_year()));
+      }
+      idx = fmt.find("%y");  // 两位数年份
+      if (idx >= 0) {
+        fmt.replace(idx, 2, (d.get_year() % 100 < 10 ? "0" : "") + std::to_string(d.get_year() % 100));
+      }
+      idx = fmt.find("%M");  // 月份英文
+      if (idx >= 0) {
+        fmt.replace(idx, 2, d.get_month_english());
+      }
+      idx = fmt.find("%m");  // 月份 01-12
+      if (idx >= 0) {
+        fmt.replace(idx, 2, (d.get_month() < 10 ? "0" : "") + std::to_string(d.get_month()));
+      }
+      idx = fmt.find("%c");  // 月份 1-12
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_month()));
+      }
+      idx = fmt.find("%D");  // 月份英文
+      if (idx >= 0) {
+        fmt.replace(idx, 2, d.get_day_english());
+      }
+      idx = fmt.find("%d");  // 日期
+      if (idx >= 0) {
+        fmt.replace(idx, 2, (d.get_day() < 10 ? "0" : "") + std::to_string(d.get_day()));
+      }
+      idx = fmt.find("%e");  // 日期
+      if (idx >= 0) {
+        fmt.replace(idx, 2, std::to_string(d.get_day()));
+      }
+      value.set_string(fmt);
+    } break;
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return RC::INTERNAL;
+    } break;
+  }
+  return RC::SUCCESS;
+}
+
+RC FuncExpr::try_get_value(Value &value) const {
+  RC rc = RC::SUCCESS;
+  Value child_value;
+  rc = child_->try_get_value(child_value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to get value of child expression. rc=%s", strrc(rc));
+    return rc;
+  }
+  if (child_value.attr_type() != CHARS) {
+    LOG_WARN("unsupported attr type. %d", child_value.attr_type());
+    return RC::INVALID_ARGUMENT;
+  }
+  switch (type_) {
+    case FuncType::LENGTH: {
+      value.set_int(child_value.get_string().length());
+    } break;
+    default: {
+      LOG_WARN("unsupported func type. %d", type_);
+      return RC::INTERNAL;
+    } break;
   }
   return RC::SUCCESS;
 }

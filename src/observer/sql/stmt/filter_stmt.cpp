@@ -106,6 +106,15 @@ RC make_field_expr(Db *db, Table *default_table, std::unordered_map<std::string,
     }
     return rc;
   }
+  if (expr->type() == ExprType::FUNCTION) {
+    FuncExpr *func_expr = static_cast<FuncExpr *>(expr.get());
+    if (func_expr->child() == nullptr) {
+      LOG_WARN("invalid function expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    rc = make_field_expr(db, default_table, tables, func_expr->child());
+    return rc;
+  }
   if (expr->type() != ExprType::RELATTR) {
     LOG_WARN("invalid expr type: %d", expr->type());
     return RC::INVALID_ARGUMENT;
