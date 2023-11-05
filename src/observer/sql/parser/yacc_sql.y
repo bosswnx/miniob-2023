@@ -792,6 +792,10 @@ expression:
       $$ = new RelAttrExpr($1, $3);
       $$->set_name(token_name(sql_string, &@$));
     }
+    | ID DOT '*' {
+      $$ = new RelAttrExpr($1, "*");
+      $$->set_name(token_name(sql_string, &@$));
+    }
     | '*' {
       $$ = new RelAttrExpr("", "*");
       $$->set_name(token_name(sql_string, &@$));
