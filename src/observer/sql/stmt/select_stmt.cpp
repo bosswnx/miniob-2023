@@ -278,6 +278,53 @@ RC SelectStmt::check_parent_relation(Expression *expr,
   return RC::SUCCESS;
 }
 
+RC SelectStmt::convert_alias_to_name(Expression *expr, std::shared_ptr<std::unordered_map<string, string>> alias2name) {
+   if (expr->type() == ExprType::VALUE) {
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::ARITHMETIC) {
+    ArithmeticExpr *arith_expr = static_cast<ArithmeticExpr *>(expr);
+    if (arith_expr->left() != nullptr) {
+      RC rc = SelectStmt::convert_alias_to_name(arith_expr->left().get(), alias2name);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check parent relation");
+        return rc;
+      }
+    }
+    if (arith_expr->right() != nullptr) {
+      RC rc = SelectStmt::convert_alias_to_name(arith_expr->right().get(), alias2name);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to check parent relation");
+        return rc;
+      }
+    }
+    return RC::SUCCESS;
+  }
+  if (expr->type() == ExprType::AGGREGATION) {
+    AggreExpr *aggre_expr = static_cast<AggreExpr *>(expr);
+    if (aggre_expr->child() == nullptr) {
+      LOG_WARN("invalid aggre expr");
+      return RC::INVALID_ARGUMENT;
+    }
+    RC rc = SelectStmt::convert_alias_to_name(aggre_expr->child().get(), alias2name);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to check parent relation");
+      return rc;
+    }
+    return rc;
+  } 
+  // 只剩下 ATTR 了
+  if (expr->type() != ExprType::RELATTR) {
+    LOG_WARN("invalid expr type: %d", expr->type());
+    return RC::INVALID_ARGUMENT;
+  }
+  auto relattr_expr = static_cast<RelAttrExpr *>(expr);
+  if (alias2name->find(relattr_expr->table_name()) != alias2name->end()) {
+    relattr_expr->set_table_name((*alias2name)[relattr_expr->table_name()]);
+  }
+  return RC::SUCCESS;
+}
+
 RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt, 
     std::shared_ptr<std::unordered_map<string, string>> name2alias,
     std::shared_ptr<std::unordered_map<string, string>> alias2name,
@@ -346,6 +393,14 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   //     condition.right_attr.relation_name = (*alias2name)[condition.right_attr.alias];
   //   }
   // }
+  for (auto &condition: select_sql.conditions) {
+    if (condition.left_is_expr) {
+      SelectStmt::convert_alias_to_name(condition.left_expr, alias2name);
+    }
+    if (condition.right_is_expr) {
+      SelectStmt::convert_alias_to_name(condition.right_expr, alias2name);
+    }
+  }
 
 
   // 子查询，先检测conditions中是否有子查询condition，如果有，先为其转成stmt放在condition node中备用。
@@ -583,7 +638,10 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
             Field field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias);
             query_fields.push_back(field);
             query_exprs.emplace_back(new FieldExpr(field));
-            if (with_table_name) {
+            // 如果有别名，就用别名，否则就用属性名
+            if (relation_attr.alias.size()) {
+              query_aliases.push_back(relation_attr.alias);
+            } else if (with_table_name) {
               string alias = table->name();
               alias += ".";
               alias += field_meta->name();
@@ -620,15 +678,15 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
         Field field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias);
         query_fields.push_back(field);
         query_exprs.emplace_back(new FieldExpr(field));
-        if (with_table_name) {
+        if (relation_attr.alias.size()) {
+          query_aliases.push_back(relation_attr.alias);
+        } else if (with_table_name) {
           string alias = table->name();
           alias += ".";
           alias += field_meta->name();
           query_aliases.push_back(alias);
         } else {
           query_aliases.push_back(field_meta->name());
-        }
-        if (relation_attr.aggre_type != AggreType::NONE) {
         }
       }
       // 否则就是复杂的表达式，将其中的 RelAttrExpr 转换为 FieldExpr 后，直接加入到query_exprs中
@@ -639,7 +697,11 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
         LOG_WARN("cannot construct field expr");
         return rc;
       }
-      query_aliases.push_back(expr->name());
+      if (relation_attr.alias.size()) {
+        query_aliases.push_back(relation_attr.alias);
+      } else {
+        query_aliases.push_back(expr->name());
+      }
       query_exprs.emplace_back(std::move(expr));
     }
   }

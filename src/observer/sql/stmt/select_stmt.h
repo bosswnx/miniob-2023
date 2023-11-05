@@ -88,6 +88,9 @@ public:
       std::shared_ptr<std::unordered_map<string, string>> parent_alias2name, 
       const std::vector<string> &main_relation_names, bool &is_parent_relation);
 
+  static RC convert_alias_to_name(Expression *expr, 
+      std::shared_ptr<std::unordered_map<string, string>> alias2name);
+
   // get query field by expr。
   // 不维护偏移量和index
   // 此方法用于create table select
