@@ -156,7 +156,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> DATE_STR
 %token <string> SSS
 %token <string> NULL_T
-%token <string> SSSTEXT
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -466,18 +465,28 @@ attr_def:
     | ID type
     {
       $$ = new AttrInfoSqlNode;
-      $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      if ($2 == TEXTS) {
+        $$->type = AttrType::CHARS;
+        $$->length = 65535;
+      } else {
+        $$->type = (AttrType)$2;
+        $$->length = 4;
+      }
       $$->is_null = false;
       free($1);
     }
     | ID type opt_null
     {
       $$ = new AttrInfoSqlNode;
-      $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      if ($2 == TEXTS) {
+        $$->type = AttrType::CHARS;
+        $$->length = 65535;
+      } else {
+        $$->type = (AttrType)$2;
+        $$->length = 4;
+      }
       $$->is_null = $3;
       free($1);
       
@@ -516,7 +525,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
-    | TEXT_T   { $$=CHARS; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -567,11 +576,6 @@ value:
       $$ = new Value(true, true);
     }
     |SSS {
-      char *tmp = common::substr($1,1,strlen($1)-2);
-      $$ = new Value(tmp);
-      free(tmp);
-    }
-    | SSSTEXT {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
@@ -787,12 +791,6 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | SSS {
-      char *tmp = common::substr($1,1,strlen($1)-2);
-      $$ = new ValueExpr(Value(tmp));
-      free(tmp);
-      $$->set_name(token_name(sql_string, &@$));
-    }
-    | SSSTEXT {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new ValueExpr(Value(tmp));
       free(tmp);
