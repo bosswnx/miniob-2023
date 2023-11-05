@@ -43,6 +43,7 @@ enum class LogicalOperatorType
   EXPLAIN,    ///< 查看执行计划
   AGGREGATION,///< 聚合函数
   SORT,       ///< 排序
+  NO_TABLE_SELECT, ///< 不需要表的select，比如select length('abc')
 };
 
 /**

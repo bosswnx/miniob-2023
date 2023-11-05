@@ -50,6 +50,7 @@ enum class PhysicalOperatorType
   AGGREGATION,
   UPDATE,
   SORT,
+  NO_TABLE_SELECT,
 };
 
 /**
