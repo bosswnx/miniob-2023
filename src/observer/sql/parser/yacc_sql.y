@@ -77,6 +77,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INT_T
         STRING_T
         DATE_T
+        TEXT_T
         FLOAT_T
         HELP
         EXIT
@@ -155,6 +156,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> DATE_STR
 %token <string> SSS
 %token <string> NULL_T
+%token <string> SSSTEXT
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -514,6 +516,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
+    | TEXT_T   { $$=CHARS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -564,6 +567,11 @@ value:
       $$ = new Value(true, true);
     }
     |SSS {
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      $$ = new Value(tmp);
+      free(tmp);
+    }
+    | SSSTEXT {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
@@ -779,6 +787,12 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | SSS {
+      char *tmp = common::substr($1,1,strlen($1)-2);
+      $$ = new ValueExpr(Value(tmp));
+      free(tmp);
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | SSSTEXT {
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new ValueExpr(Value(tmp));
       free(tmp);

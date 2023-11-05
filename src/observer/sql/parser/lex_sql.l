@@ -122,6 +122,7 @@ DATE                                    RETURN_TOKEN(DATE_T);
 FLOAT                                   RETURN_TOKEN(FLOAT_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
+TEXT                                    RETURN_TOKEN(TEXT_T);
 INFILE                                  RETURN_TOKEN(INFILE);
 NULL                                    RETURN_TOKEN(NULL_T);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
