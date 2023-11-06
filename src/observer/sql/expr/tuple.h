@@ -351,6 +351,26 @@ public:
   {
     return marked_;
   }
+
+  int all_c_num() override
+  {
+    return values_.size();
+  }
+
+  RC all_c_at(int index, Value &cell) override
+  {
+    if (index < 0 || index >= static_cast<int>(values_.size())) {
+      LOG_WARN("invalid argument. index=%d", index);
+      return RC::INVALID_ARGUMENT;
+    }
+    cell = values_[index];
+    return RC::SUCCESS;
+  }
+
+  void set_cells(const std::vector<Value> &cells)
+  {
+    values_ = cells;
+  }
 private:
   std::vector<TupleCellSpec> speces_;
   std::vector<Value> values_;

@@ -999,6 +999,24 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
     return rc;
   }
 
+
+  // create filter statement in `where` statement
+  FilterStmt *filter_stmt2 = nullptr;
+
+  if (!select_sql.havings.empty()) {
+    rc = FilterStmt::create(db,
+        default_table,
+        &table_map,
+        select_sql.havings.data(), // vector.data() 返回指向vector第一个元素的指针
+        static_cast<int>(select_sql.havings.size()),
+        filter_stmt2);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
+  }
+
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
@@ -1008,6 +1026,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->query_aliases_.swap(query_aliases);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->having_stmt_ = filter_stmt2;
   select_stmt->order_by_fields_.swap(order_by_fields);
   select_stmt->group_by_fields_.swap(group_by_fields);
   stmt = select_stmt;

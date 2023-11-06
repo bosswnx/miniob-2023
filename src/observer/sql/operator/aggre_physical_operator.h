@@ -52,7 +52,7 @@ public:
 
 private:
   Trx * trx_ = nullptr;  // trx 用于处理并发
-  ValueListTuple tuple_;
+  GroupByTuple tuple_;
   bool finished_ = false;
   std::vector<Field> group_by_fields_;
   std::vector<GroupByTuple> tuples_;

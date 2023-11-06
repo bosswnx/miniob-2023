@@ -163,6 +163,17 @@ RC LogicalPlanGenerator::create_plan(
     logical_operator.swap(project_oper);
   }
 
+  if (is_aggre && select_stmt->having_stmt() != nullptr) {
+    unique_ptr<LogicalOperator> predicate_oper;
+    RC rc = create_plan(select_stmt->having_stmt(), predicate_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
+      return rc;
+    }
+    predicate_oper->add_child(std::move(logical_operator));
+    logical_operator.swap(predicate_oper);
+  }
+
   if (select_stmt->order_by_fields().size() != 0) {
     if (select_stmt->group_by_fields().empty()) {
       unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields, false));
@@ -173,7 +184,6 @@ RC LogicalPlanGenerator::create_plan(
       sort_oper->add_child(std::move(logical_operator));
       logical_operator.swap(sort_oper);
     }
-
   }
   return RC::SUCCESS;
 }

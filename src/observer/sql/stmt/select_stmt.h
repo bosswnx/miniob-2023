@@ -73,6 +73,11 @@ public:
   {
     return filter_stmt_;
   }
+
+  FilterStmt *having_stmt() const
+  {
+    return having_stmt_;
+  }
   bool is_aggre() const { return is_aggre_; }
   const std::vector<Field> &order_by_fields() const { return order_by_fields_; }
 
@@ -147,6 +152,7 @@ private:
   std::vector<Table *> tables_;
   bool is_aggre_;
   FilterStmt *filter_stmt_ = nullptr;
+  FilterStmt *having_stmt_ = nullptr;
   std::vector<Field> order_by_fields_;
   std::vector<Field> group_by_fields_;
 };

@@ -157,6 +157,7 @@ RC AggregationPhysicalOperator::next(Tuple *main_query_tuple) {
       cells[i + conditions.size()] = cell;
     }
     tuple_.set_cells(cells);
+    tuple_.set_schema(all_table_fields_);
 
     tuple = static_cast<ProjectTuple*>(child->current_tuple());
     for (int i=0; i<tuple->cell_num(); ++i) {
