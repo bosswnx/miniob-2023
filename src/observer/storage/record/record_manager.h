@@ -24,6 +24,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/bitmap.h"
 #include "storage/field/field.h"
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -383,6 +384,9 @@ public:
    */
   RC   next(Record &record);
 
+  void set_is_page(int page_num) { is_not_page_[page_num] = false; }
+  void set_is_not_page(int page_num) { is_not_page_[page_num] = true; }
+
 private:
   /**
    * @brief 获取该文件中的下一条记录
@@ -402,6 +406,7 @@ private:
   bool               readonly_         = false;    ///< 遍历出来的数据，是否可能对它做修改
 
   BufferPoolIterator bp_iterator_;                 ///< 遍历buffer pool的所有页面
+  unordered_map<int, bool> is_not_page_;
   ConditionFilter   *condition_filter_ = nullptr;  ///< 过滤record
   RecordPageHandler  record_page_handler_;         ///< 处理文件某页面的记录
   RecordPageIterator record_page_iterator_;        ///< 遍历某个页面上的所有record

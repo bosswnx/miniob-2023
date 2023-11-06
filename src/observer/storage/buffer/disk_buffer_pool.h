@@ -174,10 +174,12 @@ public:
   bool has_next();
   PageNum next();
   RC reset();
+  DiskBufferPool *bp() const { return bp_; }
 
 private:
   common::Bitmap bitmap_;
   PageNum current_page_num_ = -1;
+  DiskBufferPool *bp_ = nullptr;
 };
 
 /**
@@ -263,6 +265,10 @@ public:
    */
   RC recover_page(PageNum page_num);
 
+  void set_is_not_page(PageNum page_num, bool is_not_page) {
+    is_not_page_[page_num] = is_not_page;
+  }
+
 protected:
   RC allocate_frame(PageNum page_num, Frame **buf);
 
@@ -282,6 +288,7 @@ protected:
    */
   RC flush_page_internal(Frame &frame);
 
+
 private:
   BufferPoolManager &  bp_manager_;
   BPFrameManager &     frame_manager_;
@@ -291,6 +298,8 @@ private:
   Frame *              hdr_frame_ = nullptr;
   BPFileHeader *       file_header_ = nullptr;
   std::set<PageNum>    disposed_pages_;
+
+  unordered_map<PageNum, bool>  is_not_page_;
 
   common::Mutex        lock_;
 private:

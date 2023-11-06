@@ -231,7 +231,7 @@ RC RecordPageHandler::update_record(const RID *rid, const vector<FieldMeta> &fie
   char *record_data = get_record_data(rid->slot_num); // 获取原先记录的数据首地址
   for (int i = 0; i < field_metas.size(); i++) {
     if (old_values != nullptr) {
-      (*old_values)[i].set_type(field_metas[i].type());
+      (*old_values)[i].set_type(values[i].attr_type());
       (*old_values)[i].set_data(record_data + field_metas[i].offset(), field_metas[i].len());
       if(values[i].get_null_or_()){
         if (field_metas[i].is_null()) {
@@ -599,6 +599,9 @@ RC RecordFileScanner::fetch_next_record()
   // 上个页面遍历完了，或者还没有开始遍历某个页面，那么就从一个新的页面开始遍历查找
   while (bp_iterator_.has_next()) {
     PageNum page_num = bp_iterator_.next();
+    if (page_num <= 0) {
+      break;
+    }
     record_page_handler_.cleanup();
     rc = record_page_handler_.init(*disk_buffer_pool_, page_num, readonly_);
     if (OB_FAIL(rc)) {

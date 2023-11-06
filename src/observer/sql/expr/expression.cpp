@@ -13,14 +13,20 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/expr/expression.h"
+#include "common/log/log.h"
 #include "common/rc.h"
 #include "sql/expr/tuple.h"
+#include "sql/expr/tuple_cell.h"
 #include "sql/operator/physical_operator.h"
 #include "sql/operator/logical_operator.h"
 #include "sql/parser/value.h"
+#include "storage/buffer/page.h"
 #include "storage/index/index.h"
 #include "gtest/gtest.h"
 #include <cmath>
+#include <cstddef>
+#include <cstring>
+#include <string>
 
 class LogicalOperator;
 class PhysicalOperator;
@@ -32,7 +38,38 @@ using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)
 {
-  return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  RC rc = tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("field expr get value fail");
+  }
+  if (field_.attr_type() != TEXTS) {
+    return rc;
+  }
+  // 如果当前字段是 TEXTS，需要把对应的数据取出来
+  auto data = value.data();
+  int length = *(int *)data;
+  char *text_data = new char[length];
+  memset(text_data, 0, length);
+  int offset = 0;
+  for (int i = 0; i < BP_TEXTS_PAGE_NUM; i++) {
+    Frame *frame = nullptr;
+    PageNum page_num = *(PageNum*)(data + (i + 1) * 4);
+    if (page_num <= 0) {
+      break;
+    }
+    rc = field_.table()->data_buffer_pool()->get_this_page(page_num, &frame);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("get page fail in get value");
+      return RC::INTERNAL;
+    }
+    int len = std::min(length - offset, BP_PAGE_DATA_SIZE);
+    memcpy(text_data + offset, frame->data(), len);
+    offset += len;
+  }
+  value.set_type(CHARS);
+  value.set_data(text_data, length);
+  delete[] text_data;
+  return RC::SUCCESS;
 }
 
 RC ValueExpr::get_value(const Tuple &tuple, Value &value, Trx *trx)

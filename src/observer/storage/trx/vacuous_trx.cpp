@@ -63,7 +63,7 @@ RC VacuousTrx::delete_record(Table *table, Record &record)
   return table->delete_record(record);
 }
 
-RC VacuousTrx::update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values)
+RC VacuousTrx::update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, vector<Value> &values)
 {
   return table->update_record(old_record, field_metas, values);
 }

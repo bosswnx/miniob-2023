@@ -48,7 +48,7 @@ public:
 
   RC insert_record(Table *table, Record &record) override;
   RC delete_record(Table *table, Record &record) override;
-  RC update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values) override;
+  RC update_record(Table *table, const Record &old_record, const vector<FieldMeta> &field_metas, vector<Value> &values) override;
   RC visit_record(Table *table, Record &record, bool readonly) override;
   RC start_if_need() override;
   RC commit() override;

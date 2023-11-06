@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
+#include <cstring>
 #include <fstream>
 #include <limits.h>
 #include <string.h>
@@ -22,8 +23,11 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "common/defs.h"
+#include "common/rc.h"
+#include "common/types.h"
 #include "sql/parser/parse_defs.h"
 #include "sql/parser/value.h"
+#include "storage/buffer/page.h"
 #include "storage/field/field_meta.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
@@ -300,7 +304,7 @@ const TableMeta &Table::table_meta() const
   return table_meta_;
 }
 
-RC Table::make_record(int value_num, const Value *values, Record &record)
+RC Table::make_record(int value_num, Value *values, Record &record)
 {
   // 检查字段类型是否一致
   if (value_num + table_meta_.sys_field_num() != table_meta_.field_num()) {
@@ -311,11 +315,67 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
   const int normal_field_start_index = table_meta_.sys_field_num();
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
-    const Value &value = values[i];
-    if (!(field->is_null() && value.get_null_or_()) && field->type() != value.attr_type()) {
+    Value &value = values[i];
+    // 检查字段类型是否一致
+    if ((!field->is_null() && value.get_null_or_()) ||
+        (field->type() != TEXTS && field->type() != value.attr_type()) || 
+        (field->type() == TEXTS && value.attr_type() != CHARS)) {
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    // 检查 CHARS 长度是否小于最大值
+    if (field->type() == CHARS && value.length() > field->len()) {
+      LOG_ERROR("Invalid value length. table name =%s, field name=%s, len=%d, but given=%d",
+                table_meta_.name(), field->name(), field->len(), value.length());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    // 检查 TEXTS 长度是否小于最大值
+    if (field->type() == TEXTS && value.length() > 65535) {
+      LOG_ERROR("Invalid value length. table name =%s, field name=%s, len=%d, but given=%d",
+                table_meta_.name(), field->name(), field->len(), value.length());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    // 如果是 TEXTS 类型，需要把数据写入 page
+    if (field->type() == TEXTS) {
+      int offset = 0;
+      vector<PageNum> page_nums;
+      for (int i = 0; i < BP_TEXTS_PAGE_NUM && offset < value.length(); i++) {
+        Frame *frame = nullptr;
+        RC rc = RC::SUCCESS;
+        rc = data_buffer_pool_->allocate_page(&frame);
+        data_buffer_pool_->set_is_not_page(frame->page_num(), true);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to allocate page for text field. table name=%s, field name=%s, rc=%d:%s",
+                    table_meta_.name(), field->name(), rc, strrc(rc));
+          return rc;
+        }
+        auto data = frame->page().data;
+        memset(data, 0, BP_PAGE_DATA_SIZE);
+        int len = std::min(value.length() - offset, BP_PAGE_DATA_SIZE);
+        memcpy(data, value.data() + offset, len);
+        offset += len;
+        page_nums.push_back(frame->page_num());
+        frame->dirty();
+        data_buffer_pool_->unpin_page(frame);
+      }
+      char *data = new char[BP_TEXTS_FIELD_SIZE];
+      memset(data, 0, BP_TEXTS_FIELD_SIZE);
+      offset = 0;
+      int length = value.length();
+      memcpy(data, &length, 4);
+      offset += 4;
+      for (int i = 0; i < page_nums.size(); i++) {
+        memcpy(data + offset, &page_nums[i], 4);
+        offset += 4;
+      }
+      for (int i = page_nums.size(); i < BP_TEXTS_PAGE_NUM; i++) {
+        memset(data + offset, 0, 4);
+        offset += 4;
+      }
+      value.set_type(CHARS);
+      value.set_data(data, BP_TEXTS_FIELD_SIZE);
+      delete[] data;
     }
   }
 
@@ -488,11 +548,44 @@ RC Table::delete_record(const Record &record)
            "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
            name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
+  // 检查是否有 TEXTS 类型的字段，如果有，需要删除对应的 page
+  const int field_num = table_meta_.field_num();
+  for (int i = 0; i < field_num; i++) {
+    const FieldMeta *field = table_meta_.field(i);
+    if (field->type() == TEXTS) {
+      const char *data = record.data() + field->offset();
+      int len = *(int *)data;
+      int offset = 4;
+      for (int i = 0; i < BP_TEXTS_PAGE_NUM; i++) {
+        PageNum page_num = *(PageNum *)(data + offset);
+        if (page_num <= 0) {
+          break;
+        }
+        offset += 4;
+        Frame *frame = nullptr;
+        RC rc = RC::SUCCESS;
+        rc = data_buffer_pool_->get_this_page(page_num, &frame);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to get page for text field. table name=%s, field name=%s, rc=%d:%s",
+                    table_meta_.name(), field->name(), rc, strrc(rc));
+          return rc;
+        }
+        data_buffer_pool_->unpin_page(frame);
+        rc = data_buffer_pool_->dispose_page(page_num);
+        data_buffer_pool_->set_is_not_page(page_num, false);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to delete page for text field. table name=%s, field name=%s, rc=%d:%s",
+                    table_meta_.name(), field->name(), rc, strrc(rc));
+          return rc;
+        }
+      }
+    }
+  }
   rc = record_handler_->delete_record(&record.rid());
   return rc;
 }
 
-RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field_metas, const vector<Value> &values) {
+RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field_metas, vector<Value> &values) {
   RC rc = RC::SUCCESS;
 
   // 删除索引
@@ -500,8 +593,81 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
 
   vector<Value> old_values;
   old_values.resize(values.size());
+  // 如果需要更新 TEXTS 类型的数据，需要先把数据写入 page
+  for (int i = 0; i < field_metas.size(); i++) {
+    if (field_metas[i].type() == TEXTS) {
+      int offset = 0;
+      vector<PageNum> page_nums;
+      for (int j = 0; j < BP_TEXTS_PAGE_NUM && offset < values[i].length(); j++) {
+        Frame *frame = nullptr;
+        RC rc = RC::SUCCESS;
+        rc = data_buffer_pool_->allocate_page(&frame);
+        data_buffer_pool_->set_is_not_page(frame->page_num(), true);
+        if (rc != RC::SUCCESS) {
+          LOG_ERROR("Failed to allocate page for text field. table name=%s, field name=%s, rc=%d:%s",
+                    table_meta_.name(), field_metas[i].name(), rc, strrc(rc));
+          return rc;
+        }
+        auto data = frame->page().data;
+        memset(data, 0, BP_PAGE_DATA_SIZE);
+        int len = std::min(values[i].length() - offset, BP_PAGE_DATA_SIZE);
+        memcpy(data, values[i].data() + offset, len);
+        offset += len;
+        page_nums.push_back(frame->page_num());
+        frame->dirty();
+        data_buffer_pool_->unpin_page(frame);
+      }
+      char *data = new char[BP_TEXTS_FIELD_SIZE];
+      memset(data, 0, BP_TEXTS_FIELD_SIZE);
+      offset = 0;
+      int length = values[i].length();
+      memcpy(data + offset, &length, 4);
+      offset += 4;
+      for (int j = 0; j < page_nums.size(); j++) {
+        memcpy(data + offset, &page_nums[j], 4);
+        offset += 4;
+      }
+      for (int j = page_nums.size(); j < BP_TEXTS_PAGE_NUM; j++) {
+        memset(data + offset, 0, 4);
+        offset += 4;
+      }
+      values[i].set_type(CHARS);
+      values[i].set_data(data, BP_TEXTS_FIELD_SIZE);
+    }
+  }
   rc = record_handler_->update_record(&old_record.rid(), field_metas, values, &old_values);
   if (rc != RC::SUCCESS) {
+    // 如果更新失败了，需要把 TEXTS 类型的 page 删除
+    for (int i = 0; i < field_metas.size(); i++) {
+      if (field_metas[i].type() == TEXTS) {
+        const char *data = values[i].data();
+        int len = *(int *)data;
+        int offset = 4;
+        for (int i = 0; i < BP_TEXTS_PAGE_NUM; i++) {
+          PageNum page_num = *(PageNum *)(data + offset);
+          if (page_num <= 0) {
+            break;
+          }
+          offset += 4;
+          Frame *frame = nullptr;
+          RC rc = RC::SUCCESS;
+          rc = data_buffer_pool_->get_this_page(page_num, &frame);
+          if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to get page for text field. table name=%s, field name=%s, rc=%d:%s",
+                      table_meta_.name(), field_metas[i].name(), rc, strrc(rc));
+            return rc;
+          }
+          data_buffer_pool_->unpin_page(frame);
+          rc = data_buffer_pool_->dispose_page(page_num);
+          data_buffer_pool_->set_is_not_page(page_num, false);
+          if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to delete page for text field. table name=%s, field name=%s, rc=%d:%s",
+                      table_meta_.name(), field_metas[i].name(), rc, strrc(rc));
+            return rc;
+          }
+        }
+      }
+    }
     return rc;
   }
 
@@ -516,6 +682,37 @@ RC Table::update_record(const Record &old_record, const vector<FieldMeta> &field
                 name(), rc2, strrc(rc2));
     }
     rc2 = record_handler_->update_record(&old_record.rid(), field_metas, old_values);
+    // 如果更新失败了，需要把 TEXTS 类型的 page 删除
+    for (int i = 0; i < field_metas.size(); i++) {
+      if (field_metas[i].type() == TEXTS) {
+        const char *data = values[i].data();
+        int len = *(int *)data;
+        int offset = 4;
+        for (int i = 0; i < BP_TEXTS_PAGE_NUM; i++) {
+          PageNum page_num = *(PageNum *)(data + offset);
+          if (page_num <= 0) {
+            break;
+          }
+          offset += 4;
+          Frame *frame = nullptr;
+          RC rc = RC::SUCCESS;
+          rc = data_buffer_pool_->get_this_page(page_num, &frame);
+          if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to get page for text field. table name=%s, field name=%s, rc=%d:%s",
+                      table_meta_.name(), field_metas[i].name(), rc, strrc(rc));
+            return rc;
+          }
+          data_buffer_pool_->unpin_page(frame);
+          rc = data_buffer_pool_->dispose_page(page_num);
+          data_buffer_pool_->set_is_not_page(page_num, false);
+          if (rc != RC::SUCCESS) {
+            LOG_ERROR("Failed to delete page for text field. table name=%s, field name=%s, rc=%d:%s",
+                      table_meta_.name(), field_metas[i].name(), rc, strrc(rc));
+            return rc;
+          }
+        }
+      }
+    }
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));

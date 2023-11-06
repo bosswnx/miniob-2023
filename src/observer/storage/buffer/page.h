@@ -25,6 +25,9 @@ static constexpr PageNum BP_HEADER_PAGE   = 0;
 
 static constexpr const int BP_PAGE_SIZE = (1 << 13);
 static constexpr const int BP_PAGE_DATA_SIZE = (BP_PAGE_SIZE - sizeof(PageNum) - sizeof(LSN));
+static constexpr const int BP_TEXTS_SIZE = 65535;  // TEXTS 类型的字段最大长度
+static constexpr const int BP_TEXTS_FIELD_SIZE = (BP_TEXTS_SIZE / BP_PAGE_DATA_SIZE + 1) * 4 + 4;  // TEXTS 类型的字段在record中占用的字节数
+static constexpr const int BP_TEXTS_PAGE_NUM = (BP_TEXTS_SIZE + BP_PAGE_DATA_SIZE - 1) / BP_PAGE_DATA_SIZE;  // TEXTS 类型的字段占用的页数
 
 /**
  * @brief 表示一个页面，可能放在内存或磁盘上

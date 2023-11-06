@@ -100,6 +100,8 @@ RC UpdatePhysicalOperator::open(Trx *trx) {
         values_[i].set_string(std::to_string(values_[i].get_int()).c_str());
       } else if (values_[i].attr_type() == AttrType::FLOATS && field_metas_[i].type() == CHARS) {
         values_[i].set_string(std::to_string(values_[i].get_float()).c_str());
+      } else if (values_[i].attr_type() == CHARS && field_metas_[i].type() == TEXTS) {
+        // DO NOTHING
       } else {
         LOG_WARN("failed to convert value type: %s", strrc(RC::INVALID_ARGUMENT));
         return RC::INVALID_ARGUMENT;

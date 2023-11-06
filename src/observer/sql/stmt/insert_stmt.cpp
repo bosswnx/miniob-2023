@@ -64,7 +64,8 @@ RC InsertStmt::create(Db *db, InsertSqlNode &inserts, Stmt *&stmt)
     }
   // 判断插入null是否合法)
 
-    if (field_type != value_type ) {  // TODO try to convert the value type to field type
+    if (field_type != TEXTS && field_type != value_type || 
+        field_type == TEXTS && value_type != CHARS) {  // TODO try to convert the value type to field type
       if (values[i].get_null_or_() && field_meta->is_null()){
         LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);

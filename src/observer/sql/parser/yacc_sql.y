@@ -121,6 +121,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LENGTH
         ROUND
         DATE_FORMAT
+        TEXT_T
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -469,7 +470,7 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      $$->length = $2 == TEXTS ? 40: 4;
       $$->is_null = false;
       free($1);
     }
@@ -517,6 +518,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 

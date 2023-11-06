@@ -25,13 +25,13 @@ class Field // 存放有字段的数据
 {
 public:
   Field() = default;
-  Field(const Table *table, const FieldMeta *field) : table_(table), field_(field) {}
-  Field(const Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias) {}
-  Field(const Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias, const bool is_asc) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias), is_asc_(is_asc) {}
+  Field(Table *table, const FieldMeta *field) : table_(table), field_(field) {}
+  Field(Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias) {}
+  Field(Table *table, const FieldMeta *field, const string &table_alias, const string &field_alias, const bool is_asc) : table_(table), field_(field), table_alias_(table_alias), field_alias_(field_alias), is_asc_(is_asc) {}
 
   Field(const Field &) = default;
 
-  const Table *table() const { return table_; }
+  Table *table() { return table_; }
   const FieldMeta *meta() const{ return field_; }
   AttrType attr_type() const { return field_->type(); }
   const char *table_name() const { return table_->name(); }
@@ -43,7 +43,7 @@ public:
   const bool is_null(){
     return field_->is_null();
   }
-  void set_table(const Table *table) { this->table_ = table; }
+  void set_table(Table *table) { this->table_ = table; }
   void set_field(const FieldMeta *field) { this->field_ = field; }
 
   void set_int(Record &record, int value);
@@ -54,7 +54,7 @@ public:
   const bool is_asc() const {return is_asc_;}
 
 private:
-  const Table *table_ = nullptr;  // 字段所在的表
+  Table *table_ = nullptr;  // 字段所在的表
   string table_alias_;
   string field_alias_;
   const FieldMeta *field_ = nullptr;  // 字段的元数据

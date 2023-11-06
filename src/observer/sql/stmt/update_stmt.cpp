@@ -118,6 +118,8 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
           // update.targets[i].value.set_type(AttrType::CHARS);
         } else if (update.targets[i].value.get_null_or_()) {
            
+        } else if (update.targets[i].value.attr_type() == CHARS && field_metas[i].type() == TEXTS) {
+          // DO NOTHING
         } else {
           LOG_WARN("type mismatch. to_type=%d, from_type=%d", to_type, from_type);
           return RC::INVALID_ARGUMENT;

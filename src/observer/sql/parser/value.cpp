@@ -63,7 +63,8 @@ void Value::set_data(char *data, int length)
   is_null_ = false;
   switch (attr_type_) {
     case CHARS: {
-      set_string(data, length);
+      str_value_.assign(data, length);
+      length_ = length;
     } break;
     case INTS: {
       num_value_.int_value_ = *(int *)data;
@@ -153,7 +154,7 @@ void Value::set_value(const Value &value)
     case DATES: {
       set_date(value.get_date());
     } break;
-    case UNDEFINED: {
+    default: {
       ASSERT(false, "got an invalid value type");
     } break;
   }

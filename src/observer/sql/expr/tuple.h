@@ -199,7 +199,7 @@ public:
     return TupleType::ROW;
   }
 
-  void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
+  void set_schema(Table *table, const std::vector<FieldMeta> *fields)
   {
     table_ = table;
     speces_.clear();
@@ -223,7 +223,7 @@ public:
 
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
-    cell.set_type(field_meta->type());
+    cell.set_type(field_meta->type() == TEXTS ? CHARS : field_meta->type());
     //this->record_,判断第index个字段是否为为1，如果为1则将cell.is_null_置为true
     if(this->record_->data()[index] == 1)
     {
