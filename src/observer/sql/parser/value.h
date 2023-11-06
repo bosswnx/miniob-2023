@@ -64,9 +64,9 @@ class date
     std::string result = std::to_string(get_day());
     if (get_day() % 10 == 1) {
       result += "st";
-    } else if (get_day() % 10 == 2) {
+    } else if (get_day() == 2) {
       result += "nd";
-    } else if (get_day() % 10 == 3) {
+    } else if (get_day() == 3) {
       result += "rd";
     } else {
       result += "th";
