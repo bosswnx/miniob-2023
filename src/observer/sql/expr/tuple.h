@@ -38,6 +38,7 @@ enum class TupleType
   EXPRESSION,
   VALUE_LIST,
   JOINED,
+  GROUPBY,
   NONE,
 };
 
@@ -283,6 +284,79 @@ private:
   std::vector<FieldExpr *> speces_;  // 每个 cell 对应的字段，可以是一个表达式
 };
 
+
+class GroupByTuple : public Tuple
+{
+public:
+  GroupByTuple() = default;
+  virtual ~GroupByTuple()
+  {
+    speces_.clear();
+  }
+
+  TupleType type() const override
+  {
+    return TupleType::GROUPBY;
+  }
+
+  void set_schema(const std::vector<Field> fields)
+  {
+    for (const Field &field : fields) {
+      speces_.push_back(TupleCellSpec(field.table_name(), field.field_name()));
+    }
+  }
+
+  int cell_num() const override
+  {
+    return speces_.size();
+  }
+
+  RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+      LOG_WARN("invalid argument. index=%d", index);
+      return RC::INVALID_ARGUMENT;
+    }
+    cell = values_[index];
+    return RC::SUCCESS;
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  {
+    const char *table_name = spec.table_name();
+    const char *field_name = spec.field_name();
+
+    for (size_t i = 0; i < speces_.size(); ++i) {
+      const TupleCellSpec spec = speces_[i];
+      if (0 == strcmp(table_name, spec.table_name()) && 0 == strcmp(field_name, spec.field_name())) {
+        cell = values_[i];
+        return RC::SUCCESS;
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+  void append_cell(const Value &cell)
+  {
+    values_.push_back(cell);
+  }
+
+  // set mark
+  void set_mark(bool mark)
+  {
+    marked_ = mark;
+  }
+
+  bool get_mark()
+  {
+    return marked_;
+  }
+private:
+  std::vector<TupleCellSpec> speces_;
+  std::vector<Value> values_;
+  bool marked_ = false;
+};
+
 /**
  * @brief 从一行数据中，选择部分字段组成的元组，也就是投影操作
  * @ingroup Tuple
@@ -313,6 +387,13 @@ public:
   int cell_num() const override
   {
     return exprs_.size();
+  }
+
+  void reset_aggre_expr(int index)
+  {
+    // static cast to AggreExpr
+    AggreExpr *aggre_expr = static_cast<AggreExpr *>(exprs_[index].get());
+    aggre_expr->reset_cnt();
   }
 
   RC cell_at(int index, Value &cell) const override
@@ -457,6 +538,23 @@ public:
   {
     return RC::INTERNAL;
   }
+
+  int all_c_num() override
+  {
+    return static_cast<int>(cells_.size());
+  }
+
+  RC all_c_at(int index, Value &cell) override
+  {
+    if (index < 0 || index >= cell_num()) {
+      return RC::NOTFOUND;
+    }
+
+    cell = cells_[index];
+    return RC::SUCCESS;
+  }
+
+
 
 private:
   std::vector<Value> cells_;

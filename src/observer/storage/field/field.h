@@ -53,6 +53,9 @@ public:
 
   const bool is_asc() const {return is_asc_;}
 
+  //set asc
+  void set_asc(bool is_asc) {is_asc_ = is_asc;}
+
 private:
   const Table *table_ = nullptr;  // 字段所在的表
   string table_alias_;

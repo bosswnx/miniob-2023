@@ -611,6 +611,77 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   //   }
   // }
 
+
+
+  // group by
+  std::vector<Field> group_by_fields;
+  for (int i=0; i<select_sql.group_attrs.size(); ++i) {
+    const RelAttrSqlNode &relation_attr = select_sql.group_attrs[i]; // order by's relation attr
+    auto *relattr_expr = static_cast<RelAttrExpr*>(relation_attr.expr);
+    if (relattr_expr->table_name().empty() && relattr_expr->field_name() == "*") {
+      LOG_WARN("invalid selection. * cannot have alias.");
+      return RC::INVALID_ARGUMENT;
+    } else if (relattr_expr->table_name().size()) {
+      const auto &table_name = relattr_expr->table_name();
+      if (alias2name->find(table_name) != alias2name->end()) {  // 如果表名在name2alias中，说明有别名
+        relattr_expr->set_table_name((*alias2name)[table_name]);
+      }
+      const auto &field_name = relattr_expr->field_name();
+      if (table_name == "*") {  // 表名为*
+        if (field_name != "*") {  // 属性名不为*，报错
+          LOG_WARN("invalid field name while table is *. attr=%s", field_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        LOG_WARN("invalid selection. * cannot have alias.");
+        return RC::INVALID_ARGUMENT;
+      } else {  // 表名不是*，是具体的表名
+        auto iter = table_map.find(table_name);
+        if (iter == table_map.end()) {
+          LOG_WARN("no such table in from list: %s", table_name.c_str());
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        Table *table = iter->second;
+        if (field_name == "*") {
+          LOG_WARN("invalid selection. * cannot have alias.");
+          return RC::INVALID_ARGUMENT;
+        } else {
+          const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
+          if (nullptr == field_meta) {
+            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name.c_str());
+            return RC::SCHEMA_FIELD_MISSING;
+          }
+          group_by_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias, relation_attr.is_asc));
+        }
+      }
+    } else {
+      if (tables.size() != 1) {
+        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relattr_expr->field_name().c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      Table *table = tables[0];
+      const FieldMeta *field_meta = table->table_meta().field(relattr_expr->field_name().c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relattr_expr->field_name().c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      group_by_fields.push_back(Field(table, field_meta, (*name2alias)[table->name()], relation_attr.alias, relation_attr.is_asc));
+    }
+
+    // 检查group_by
+    bool ok = false;
+    for (int i=0; i<select_sql.attributes.size(); ++i) {
+      const RelAttrSqlNode &relation_attr1 = select_sql.attributes[i]; // order by's relation attr
+      auto *relattr_expr1 = static_cast<RelAttrExpr*>(relation_attr1.expr);
+      if (relattr_expr1->table_name() == relattr_expr->table_name() && relattr_expr1->field_name() == relattr_expr->field_name()) {
+        ok = true;
+      }
+    }
+    if (!ok) {
+      LOG_WARN("invalid group by. group by attr must be in select attrs.");
+      return RC::INVALID_ARGUMENT;
+    }
+  }
+
   // collect query fields in `select` statement
   std::vector<std::unique_ptr<Expression>> query_exprs;  // 需要查询的表达式
   std::vector<std::string> query_aliases;  // 查询的名称
@@ -618,6 +689,18 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   int aggre_stat = 0;  //  用于表示当前是否有聚合函数  01->普通  10->聚合
   bool with_table_name = tables.size() > 1;  // 是否需要表名
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+
+    if(!group_by_fields.empty()) {
+      bool tag = false;
+      for (int j=0; j<group_by_fields.size(); ++j) {
+        if (select_sql.attributes[i].expr->type() != ExprType::AGGREGATION) {
+          tag = true;
+          break;
+        }
+      }
+      if (tag) continue;
+    }
+
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
     // 如果 relation 为空，说明是一个表达式，检查没有 attrexpr 后直接加入到 query_exprs 中
     RC rc = RC::SUCCESS;
@@ -646,8 +729,12 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
     rc = SelectStmt::check_have_aggre(expr, is_aggre, is_attr);
     aggre_stat |= (is_aggre ? 2 : 1);
     if (aggre_stat == 3) {
-      LOG_WARN("both have aggregation and normal selection.");
-      return RC::INVALID_ARGUMENT;
+      if (select_sql.group_attrs.empty()) {
+        LOG_WARN("both have aggregation and normal selection.");
+        return RC::INVALID_ARGUMENT;
+      } else {
+        aggre_stat = 2;
+      }
     }
     // 如果表达式直接就是表名和属性名，那么进行判断（需要支持"*"）
     if (expr->type() == ExprType::RELATTR) {
@@ -834,11 +921,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
 
   // order by
   std::vector<Field> order_by_fields;
-  // if (select_sql.order_attrs.size() != 0) {
-  //   sql_debug()
-  // }
   for (int i=0; i<select_sql.order_attrs.size(); ++i) {
-    const RelAttrSqlNode &relation_attr = select_sql.order_attrs[i];
+    const RelAttrSqlNode &relation_attr = select_sql.order_attrs[i]; // order by's relation attr
     auto *relattr_expr = static_cast<RelAttrExpr*>(relation_attr.expr);
     if (relattr_expr->table_name().empty() && relattr_expr->field_name() == "*") {
       LOG_WARN("invalid selection. * cannot have alias.");
@@ -890,6 +974,13 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
     }
   }
 
+  // group by 复制给 order by
+  for (int i=0; i<group_by_fields.size(); ++i) {
+    Field field = group_by_fields[i];
+    field.set_asc(true);
+    order_by_fields.push_back(field);
+  }
+
   Table *default_table = nullptr;
   if (tables.size() == 1) {
     default_table = tables[0];
@@ -918,6 +1009,7 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt,
   select_stmt->query_aliases_.swap(query_aliases);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->order_by_fields_.swap(order_by_fields);
+  select_stmt->group_by_fields_.swap(group_by_fields);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

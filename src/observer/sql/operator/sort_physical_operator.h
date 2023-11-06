@@ -15,7 +15,7 @@
 class SortPhysicalOperator : public PhysicalOperator
 {
 public:
-  SortPhysicalOperator(std::vector<Field> &order_by_fields, std::vector<Field> &query_fields, std::vector<Field> tables_all_fields);
+  SortPhysicalOperator(std::vector<Field> &order_by_fields, std::vector<Field> &query_fields, std::vector<Field> tables_all_fields, bool group_mode = false);
 
   virtual ~SortPhysicalOperator() = default;
 
@@ -44,5 +44,7 @@ private:
   SortProjectTuple tuple_;
 
   std::vector<ValueListTuple> tuples_;  // 用于存储所有的 tuple
+
+  bool group_mode_ = false;
   int index_ = 0;
 };

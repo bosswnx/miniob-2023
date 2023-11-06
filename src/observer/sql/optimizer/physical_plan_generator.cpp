@@ -427,7 +427,7 @@ RC PhysicalPlanGenerator::create_plan(AggregationLogicalOperator &aggre_oper, st
     LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
     return rc;
   }
-  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator());
+  unique_ptr<PhysicalOperator> aggre_phy_oper(new AggregationPhysicalOperator(aggre_oper.group_by_fields(), aggre_oper.all_table_fields()));
   aggre_phy_oper->add_child(std::move(child_phy_oper));
   oper = std::move(aggre_phy_oper);
   return rc;
@@ -453,7 +453,7 @@ RC PhysicalPlanGenerator::create_plan(SortLogicalOperator &sort_oper, std::uniqu
     return rc;
   }
   auto order_by_fields = sort_oper.order_by_fields();
-  unique_ptr<PhysicalOperator> sort_phy_oper(new SortPhysicalOperator(order_by_fields, sort_oper.query_fields(), sort_oper.tables_all_fields()));
+  unique_ptr<PhysicalOperator> sort_phy_oper(new SortPhysicalOperator(order_by_fields, sort_oper.query_fields(), sort_oper.tables_all_fields(), sort_oper.group_mode()));
   sort_phy_oper->add_child(std::move(child_phy_oper));
   oper = std::move(sort_phy_oper);
   return rc;

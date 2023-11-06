@@ -445,6 +445,11 @@ public:
 
   std::unique_ptr<Expression> &child() { return child_; }
 
+  void reset_cnt() { 
+    cnt_ = 0; 
+    value_ = Value();
+  }
+
 private:
   AggreType type_;
   Value value_;

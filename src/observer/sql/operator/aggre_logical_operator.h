@@ -30,7 +30,7 @@ See the Mulan PSL v2 for more details. */
 class AggregationLogicalOperator : public LogicalOperator 
 {
 public:
-  AggregationLogicalOperator();
+  AggregationLogicalOperator(std::vector<Field> group_by_fields, std::vector<Field> all_table_fields);
   virtual ~AggregationLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -47,6 +47,20 @@ public:
     return expressions_;
   }
 
+  //get group by fields
+  std::vector<Field> &group_by_fields()
+  {
+    return group_by_fields_;
+  }
+
+  //get all table fields
+  std::vector<Field> &all_table_fields()
+  {
+    return all_table_fields_;
+  }
+
 private:
   //! 聚合类型
+  std::vector<Field> group_by_fields_;
+  std::vector<Field> all_table_fields_;
 };

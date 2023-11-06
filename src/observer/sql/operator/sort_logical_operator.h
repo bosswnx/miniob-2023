@@ -10,7 +10,7 @@
 class SortLogicalOperator : public LogicalOperator 
 {
 public:
-  SortLogicalOperator(const std::vector<Field> &order_by_fields, std::vector<Field> query_fields, std::vector<Field> tables_all_fields);
+  SortLogicalOperator(const std::vector<Field> &order_by_fields, std::vector<Field> query_fields, std::vector<Field> tables_all_fields, bool group_mode);
   virtual ~SortLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -31,10 +31,14 @@ public:
   std::vector<Field> &tables_all_fields() {
     return tables_all_fields_;
   }
+  bool group_mode() {
+    return group_mode_;
+  }
 
 private:
   //! 聚合类型
   std::vector<Field> order_by_fields_;
   std::vector<Field> query_fields_;
   std::vector<Field> tables_all_fields_;
+  bool group_mode_;
 };

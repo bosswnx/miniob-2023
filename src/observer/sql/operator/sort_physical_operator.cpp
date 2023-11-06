@@ -25,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 
-SortPhysicalOperator::SortPhysicalOperator(std::vector<Field> &order_by_fields, std::vector<Field> &query_fields, std::vector<Field> tables_all_fields): order_by_fields_(order_by_fields), query_fields_(query_fields), tables_all_fields_(tables_all_fields) {}
+SortPhysicalOperator::SortPhysicalOperator(std::vector<Field> &order_by_fields, std::vector<Field> &query_fields, std::vector<Field> tables_all_fields, bool group_mode): order_by_fields_(order_by_fields), query_fields_(query_fields), tables_all_fields_(tables_all_fields), group_mode_(group_mode){}
 
 RC SortPhysicalOperator::open(Trx *trx) {
   if (children_.empty()) {
@@ -39,17 +39,26 @@ RC SortPhysicalOperator::open(Trx *trx) {
     return rc;
   }
 
-  for (int i=0; i<order_by_fields_.size(); ++i) {
-    for(int j=0; j<tables_all_fields_.size(); ++j) {
-      if (order_by_fields_[i].table_name() == tables_all_fields_[j].table_name() && order_by_fields_[i].field_name() == tables_all_fields_[j].field_name()) {
-        order_by_field_indexes_.push_back(j);
-        break;
+  if (group_mode_) {
+      for (int i=0; i<order_by_fields_.size(); ++i) {
+        order_by_field_indexes_.push_back(i);
+      }
+  } else {
+    for (int i=0; i<order_by_fields_.size(); ++i) {
+      for(int j=0; j<tables_all_fields_.size(); ++j) {
+        if (order_by_fields_[i].table_name() == tables_all_fields_[j].table_name() && order_by_fields_[i].field_name() == tables_all_fields_[j].field_name()) {
+          order_by_field_indexes_.push_back(j);
+          break;
+        }
       }
     }
   }
 
+
   // we need to get all the records from the child operator
   // and sort them
+
+  int s = 0;
 
   while (rc != RC::RECORD_EOF) {
     ValueListTuple tuple;
@@ -62,6 +71,9 @@ RC SortPhysicalOperator::open(Trx *trx) {
     }
     std::vector<Value> cells;
     // int test = child->current_tuple()->all_c_num();
+    if (group_mode_) {
+      s = child->current_tuple()->all_c_num();
+    }
     for (int i=0; i<child->current_tuple()->all_c_num(); ++i) {
         Value cell;
         child->current_tuple()->all_c_at(i, cell);
@@ -94,14 +106,21 @@ RC SortPhysicalOperator::open(Trx *trx) {
 
   if (tuples_.size() > 0) {
     //pre loading
-    for (int i=0; i<query_fields_.size(); ++i) {
-      for (int j=0; j<tables_all_fields_.size(); ++j) {
-        if (query_fields_[i].table_name() == tables_all_fields_[j].table_name() && query_fields_[i].field_name() == tables_all_fields_[j].field_name()) {
-          tuple_.add_position(j);
-          break;
+    if (group_mode_) {
+      for (int i=0; i<s; ++i) {
+        tuple_.add_position(i);
+      }
+    } else {
+      for (int i=0; i<query_fields_.size(); ++i) {
+        for (int j=0; j<tables_all_fields_.size(); ++j) {
+          if (query_fields_[i].table_name() == tables_all_fields_[j].table_name() && query_fields_[i].field_name() == tables_all_fields_[j].field_name()) {
+            tuple_.add_position(j);
+            break;
+          }
         }
       }
     }
+
   }
 
   trx_ = trx;

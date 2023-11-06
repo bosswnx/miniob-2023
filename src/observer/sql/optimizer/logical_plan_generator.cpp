@@ -156,7 +156,7 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   if (is_aggre) {
-    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator());
+    unique_ptr<LogicalOperator> aggregation_oper(new AggregationLogicalOperator(select_stmt->group_by_fields(), tables_all_fields));
     aggregation_oper->add_child(std::move(project_oper));
     logical_operator.swap(aggregation_oper);
   } else {
@@ -164,9 +164,16 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   if (select_stmt->order_by_fields().size() != 0) {
-    unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields));
-    sort_oper->add_child(std::move(logical_operator));
-    logical_operator.swap(sort_oper);
+    if (select_stmt->group_by_fields().empty()) {
+      unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields, false));
+      sort_oper->add_child(std::move(logical_operator));
+      logical_operator.swap(sort_oper);
+    } else {
+      unique_ptr<LogicalOperator> sort_oper(new SortLogicalOperator(select_stmt->order_by_fields(), all_fields, tables_all_fields,true));
+      sort_oper->add_child(std::move(logical_operator));
+      logical_operator.swap(sort_oper);
+    }
+
   }
   return RC::SUCCESS;
 }

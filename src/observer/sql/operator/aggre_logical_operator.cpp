@@ -13,6 +13,9 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/operator/aggre_logical_operator.h"
+#include "storage/field/field.h"
+#include <vector>
 
-AggregationLogicalOperator::AggregationLogicalOperator() 
+AggregationLogicalOperator::AggregationLogicalOperator(std::vector<Field> group_by_fields, std::vector<Field> all_table_fields)
+    : group_by_fields_(group_by_fields), all_table_fields_(all_table_fields)
 {}

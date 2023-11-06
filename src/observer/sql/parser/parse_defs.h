@@ -182,6 +182,8 @@ struct SelectSqlNode
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<JoinSqlNode>        joins;         ///< join clause
   std::vector<RelAttrSqlNode>     order_attrs;   ///< order by clause
+  std::vector<RelAttrSqlNode>     group_attrs;   ///< group by clause
+  std::vector<ConditionSqlNode>   havings;       ///< having clause
   // std::vector<char> order_types;   /// 1: asc, 2: desc 这个放在 RelAttrSqlNode 中
 };
 
