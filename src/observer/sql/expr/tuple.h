@@ -308,12 +308,12 @@ public:
 
   int cell_num() const override
   {
-    return speces_.size();
+    return values_.size();
   }
 
   RC cell_at(int index, Value &cell) const override
   {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+    if (index < 0 || index >= static_cast<int>(values_.size())) {
       LOG_WARN("invalid argument. index=%d", index);
       return RC::INVALID_ARGUMENT;
     }
